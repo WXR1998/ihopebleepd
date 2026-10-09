@@ -79,7 +79,12 @@
  */
 
 // Advertising interval when device is discoverable (units of 625us, 160=100ms)
-#define DEFAULT_ADVERTISING_INTERVAL          160
+#define DEFAULT_ADVERTISING_INTERVAL          160  // Phase 1: 100ms fast
+
+// Two-phase advertising intervals
+#define ADV_FAST_INTERVAL    160    // 100ms (Phase 1)
+#define ADV_SLOW_INTERVAL    16000  // 10s (Phase 2)
+#define ADV_PHASE1_DURATION  60000  // 60 seconds in ms
 
 // Limited discoverable mode advertises for 30.72s, and then stops
 // General discoverable mode advertises indefinitely
@@ -88,18 +93,18 @@
 
 // Minimum connection interval (units of 1.25ms, 80=100ms) if automatic
 // parameter update request is enabled
-#define DEFAULT_DESIRED_MIN_CONN_INTERVAL     16
+#define DEFAULT_DESIRED_MIN_CONN_INTERVAL     160  // 200ms
 
 // Maximum connection interval (units of 1.25ms, 800=1000ms) if automatic
 // parameter update request is enabled
-#define DEFAULT_DESIRED_MAX_CONN_INTERVAL     16
+#define DEFAULT_DESIRED_MAX_CONN_INTERVAL     160  // 200ms
 
 // Slave latency to use if automatic parameter update request is enabled
-#define DEFAULT_DESIRED_SLAVE_LATENCY         0
+#define DEFAULT_DESIRED_SLAVE_LATENCY         4    // skip 4
 
 // Supervision timeout value (units of 10ms, 1000=10s) if automatic parameter
 // update request is enabled
-#define DEFAULT_DESIRED_CONN_TIMEOUT          100
+#define DEFAULT_DESIRED_CONN_TIMEOUT          400  // 4s
 
 // Whether to enable automatic parameter update request when a connection is
 // formed
@@ -129,13 +134,15 @@
 #define SBP_ICALL_EVT                         ICALL_MSG_EVENT_ID // Event_Id_31
 #define SBP_QUEUE_EVT                         UTIL_QUEUE_EVENT_ID // Event_Id_30
 #define SBP_PERIODIC_EVT                      Event_Id_00
+#define SBP_ADV_PHASE_EVT                     Event_Id_03
 #define SBP_UART_QUEUE_EVT                    Event_Id_02
 
 
 #define SBP_ALL_EVENTS                        (SBP_ICALL_EVT        | \
                                                SBP_QUEUE_EVT        | \
                                                SBP_UART_QUEUE_EVT   | \
-                                               SBP_PERIODIC_EVT)
+                                               SBP_PERIODIC_EVT     | \
+                                               SBP_ADV_PHASE_EVT)
 
 /*********************************************************************
  * TYPEDEFS
@@ -183,6 +190,7 @@ static ICall_SyncHandle syncEvent;
 
 // Clock instances for internal periodic events.
 static Clock_Struct periodicClock;
+static Clock_Struct advPhaseClock;
 
 // Queue object used for app messages
 static Queue_Struct appMsg;
@@ -390,6 +398,11 @@ static void SPPBLEServer_init(void)
   Util_constructClock(&periodicClock, SPPBLEServer_clockHandler,
                       SBP_PERIODIC_EVT_PERIOD, 0, false, SBP_PERIODIC_EVT);
 
+  // Power saving: two-phase advertising clock
+  Util_constructClock(&advPhaseClock, SPPBLEServer_clockHandler,
+                      ADV_PHASE1_DURATION, 0, false, SBP_ADV_PHASE_EVT);
+  Util_startClock(&advPhaseClock);
+
   //Board_initKeys(SPPBLEServer_keyChangeHandler);
 
   // Setup the GAP
@@ -565,6 +578,17 @@ static void SPPBLEServer_taskFxn(UArg a0, UArg a1)
       }
 
       // If RTOS queue is not empty, process app message.
+      // Power saving: two-phase advertising phase transition
+      if (events & SBP_ADV_PHASE_EVT)
+      {
+        // Switch from fast (Phase 1) to slow (Phase 2) advertising
+        uint16_t slowAdvInt = ADV_SLOW_INTERVAL;
+        GAP_SetParamValue(TGAP_GEN_DISC_ADV_INT_MIN, slowAdvInt);
+        GAP_SetParamValue(TGAP_GEN_DISC_ADV_INT_MAX, slowAdvInt);
+        GAP_SetParamValue(TGAP_LIM_DISC_ADV_INT_MIN, slowAdvInt);
+        GAP_SetParamValue(TGAP_LIM_DISC_ADV_INT_MAX, slowAdvInt);
+      }
+
       if (events & SBP_UART_QUEUE_EVT)
       {
         // If RTOS queue is not empty, process app message.
@@ -992,6 +1016,16 @@ static void SPPBLEServer_processStateChangeEvt(gaprole_States_t newState)
       SPPBLEServer_freeAttRsp(bleNotConnected);
 
       HWUART_Printf("%s\r\n", "DISCONNECTED...");
+
+        // Restart Phase 1 (fast advertising) after disconnect
+        {
+          uint16_t fastAdvInt = ADV_FAST_INTERVAL;
+          GAP_SetParamValue(TGAP_GEN_DISC_ADV_INT_MIN, fastAdvInt);
+          GAP_SetParamValue(TGAP_GEN_DISC_ADV_INT_MAX, fastAdvInt);
+          GAP_SetParamValue(TGAP_LIM_DISC_ADV_INT_MIN, fastAdvInt);
+          GAP_SetParamValue(TGAP_LIM_DISC_ADV_INT_MAX, fastAdvInt);
+          Util_startClock(&advPhaseClock);
+        }
       break;
 
     case GAPROLE_WAITING_AFTER_TIMEOUT:
@@ -1173,3 +1207,4 @@ void SPPBLEServer_keyChangeHandler(uint8 keys)
 
 /*********************************************************************
 *********************************************************************/
+

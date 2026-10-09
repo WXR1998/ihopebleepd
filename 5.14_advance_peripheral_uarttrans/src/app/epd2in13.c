@@ -453,6 +453,12 @@ void EPD_2IN13_Sleep(void)
   DEV_Digital_Write(EPD_POWER_PIN, 1);
   DEV_Digital_Write(BLUE_LED_PIN, 1);
   DEV_Delay_ms(100);
+
+  // Power saving: close SPI after screen update to release power dependency
+  if (SPIHandle) {
+    SPI_close(SPIHandle);
+    SPIHandle = NULL;
+  }
 }
 
 

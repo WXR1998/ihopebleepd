@@ -50,3 +50,10 @@ void HWUART_Printf(const char* format, ...)
   len = vsprintf((char*)buf, format, arg);
   UART_write(UARTHandle, buf, len);
 }
+void HWUART_Close(void)
+{
+  if (UARTHandle) {
+    UART_close(UARTHandle);
+    UARTHandle = NULL;
+  }
+}
