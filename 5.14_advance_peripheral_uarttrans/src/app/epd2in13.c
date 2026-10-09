@@ -260,7 +260,7 @@ void EPD_2IN13_ReadBusy(void)
             break;
         }
     }
-    HwUARTPrintf("e-Paper busy release %d\r\n", busy_wait / 10);
+    HWUART_Printf("e-Paper busy release %ds\r\n", busy_wait / 10);
 }
 
 
