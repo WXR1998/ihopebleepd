@@ -114,7 +114,7 @@
 #define DEFAULT_CONN_PAUSE_PERIPHERAL         6
 
 // Build identity, reported via Device Information Service (0x180A).
-#define ETAG_FW_VERSION                       "eTag-M3N-1.3"
+#define ETAG_FW_VERSION                       "eTag-M3N-1.4"
 
 // __DATE__ "Mmm dd yyyy" + __TIME__ "hh:mm:ss" -> "yyyy-mm-dd hh:mm:ss"
 // (19 chars, fits DEVINFO_STR_ATTR_LEN)
@@ -669,6 +669,17 @@ static void SPPBLEServer_taskFxn(UArg a0, UArg a1)
         GAP_SetParamValue(TGAP_GEN_DISC_ADV_INT_MAX, slowAdvInt);
         GAP_SetParamValue(TGAP_LIM_DISC_ADV_INT_MIN, slowAdvInt);
         GAP_SetParamValue(TGAP_LIM_DISC_ADV_INT_MAX, slowAdvInt);
+
+        // TGAP 广播间隔参数只在广播（重新）启动时被读取，对正在运行的
+        // 广播会话不生效——必须停→启一次广播。已连接时跳过（连接中无
+        // 广播，断连后重开广播自然使用新参数）。
+        if (gapProfileState == GAPROLE_ADVERTISING)
+        {
+          uint8_t advEnable = FALSE;
+          GAPRole_SetParameter(GAPROLE_ADVERT_ENABLED, sizeof(uint8_t), &advEnable);
+          advEnable = TRUE;
+          GAPRole_SetParameter(GAPROLE_ADVERT_ENABLED, sizeof(uint8_t), &advEnable);
+        }
       }
 
       if (events & SBP_UART_QUEUE_EVT)
