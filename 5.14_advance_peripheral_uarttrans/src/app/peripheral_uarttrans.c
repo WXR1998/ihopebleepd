@@ -114,7 +114,7 @@
 #define DEFAULT_CONN_PAUSE_PERIPHERAL         6
 
 // Build identity, reported via Device Information Service (0x180A).
-#define ETAG_FW_VERSION                       "eTag-M3N-1.7"
+#define ETAG_FW_VERSION                       "eTag-M3N-1.8"
 
 // __DATE__ "Mmm dd yyyy" + __TIME__ "hh:mm:ss" -> "yyyy-mm-dd hh:mm:ss"
 // (19 chars, fits DEVINFO_STR_ATTR_LEN)
@@ -683,25 +683,33 @@ static void SPPBLEServer_taskFxn(UArg a0, UArg a1)
 
         // TGAP 间隔参数只在广播（重新）启动时被读取，此处仅停广播；
         // 100ms 后由 SBP_ADV_RESTART_EVT 在状态落到 WAITING 后再启。
+        HWUART_Printf("[PHASE] st=%d\r\n", (int)gapProfileState);
         if (gapProfileState == GAPROLE_ADVERTISING)
         {
           uint8_t advEnable = FALSE;
-          GAPRole_SetParameter(GAPROLE_ADVERT_ENABLED, sizeof(uint8_t), &advEnable);
+          bStatus_t sr = GAPRole_SetParameter(GAPROLE_ADVERT_ENABLED, sizeof(uint8_t), &advEnable);
+          HWUART_Printf("[PHASE] stop ret=%d\r\n", (int)sr);
           Util_startClock(&advRestartClock);
+        }
+        else
+        {
+          HWUART_Printf("[PHASE] st!=ADV skip\r\n");
         }
       }
 
       // 广播延迟重启（阶段2 切换的第二拍）
       if (events & SBP_ADV_RESTART_EVT)
       {
+        HWUART_Printf("[RESTART] st=%d\r\n", (int)gapProfileState);
         if (gapProfileState == GAPROLE_WAITING)
         {
           uint8_t advEnable = TRUE;
-          GAPRole_SetParameter(GAPROLE_ADVERT_ENABLED, sizeof(uint8_t), &advEnable);
+          bStatus_t sr = GAPRole_SetParameter(GAPROLE_ADVERT_ENABLED, sizeof(uint8_t), &advEnable);
+          HWUART_Printf("[RESTART] setRet=%d\r\n", (int)sr);
         }
-        else if (gapProfileState == GAPROLE_ADVERTISING)
+        else
         {
-          // 还没停稳，再等 100ms
+          // 未停稳/其他态：100ms 后重试
           Util_startClock(&advRestartClock);
         }
       }
@@ -1156,6 +1164,7 @@ static void SPPBLEServer_processStateChangeEvt(gaprole_States_t newState)
       break;
 
     case GAPROLE_ERROR:
+      HWUART_Printf("%s\r\n", "STATE=ERROR");
       break;
 
     default:

@@ -3,6 +3,9 @@
 
 #include <stddef.h>
 
+// 诊断构建：1.8 临时点亮，定位 MakeDiscoverable 失败后移除
+#define USE_UART_DEBUG 1
+
 
 #ifdef USE_UART_DEBUG
 void HWUART_Init(void);
