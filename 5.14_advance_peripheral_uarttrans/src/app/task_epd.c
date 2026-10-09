@@ -28,6 +28,9 @@
 
 #include "util.h"
 
+// SPI/EPD error flag from epd2in13.c
+extern uint8_t epd_spi_error;
+
 uint8_t VERSION_MAJOR = 0;
 uint8_t VERSION_MINOR = 2;
 
@@ -65,6 +68,17 @@ Char EPDTaskStack[EPD_TASK_STACK_SIZE];
 // first byte is length, second is command, third and follow are command data if any
 static uint8_t epd_rx_frame[256];
 uint8_t rx_fram_len = 0;
+
+// Bounded command queue: prevents GATT write callback from
+// overwriting epd_rx_frame while EPD task is processing it.
+#define EPD_CMD_QUEUE_SIZE 4
+typedef struct {
+    uint8_t len;
+    uint8_t data[256];
+} epd_cmd_slot_t;
+static epd_cmd_slot_t epd_cmd_queue[EPD_CMD_QUEUE_SIZE];
+static volatile uint8_t epd_cmd_head = 0;
+static volatile uint8_t epd_cmd_tail = 0;
 
 static uint8_t epd_resp_frame[6];
 uint8_t resp_fram_len = 1;
@@ -145,19 +159,28 @@ void TaskEPD_taskFxn(UArg a0, UArg a1)
     
     if(events & EPDTASK_EVENT_RX_REQUEST)
     {
-      handle_cmd();
-      
-      
-      // debug
-   //   Util_delay_ms(10*1000);
-      // send response
-      if (resp_fram_len)
+      // Drain command queue: process all pending commands
+      while (epd_cmd_head != epd_cmd_tail)
       {
-        post_epd_response(epd_resp_frame, resp_fram_len);
+        epd_cmd_slot_t *slot = &epd_cmd_queue[epd_cmd_head];
+
+        // Copy queued command to working buffer
+        rx_fram_len = slot->len;
+        memcpy(epd_rx_frame, slot->data, slot->len);
+
+        // Advance head (consumes the slot)
+        epd_cmd_head = (epd_cmd_head + 1) % EPD_CMD_QUEUE_SIZE;
+
+        // Process this command
+        handle_cmd();
+
+        // Send response for this command
+        if (resp_fram_len)
+        {
+          post_epd_response(epd_resp_frame, resp_fram_len);
+        }
       }
-      
     }
-       
   }
 }
 
@@ -194,6 +217,7 @@ void handle_cmd()
   resp_fram_len  = 2;
   epd_resp_frame[0] = cmd;
   epd_resp_frame[1] = 0;
+  epd_spi_error = 0;
 
   switch(cmd) {
     case EPD_CMD_INIT:
@@ -232,12 +256,27 @@ void handle_cmd()
       break;
   }
 
+  // Propagate SPI/EPD errors to the web response
+  if (epd_spi_error) {
+    epd_resp_frame[1] = epd_spi_error;
+  }
 }
 
 void EPDTask_parseCommand(uint8_t *pMsg, uint8_t length)
 {
-  memcpy(epd_rx_frame, pMsg, length);
-  rx_fram_len = length;
-    Event_post(hEPDEvent, EPDTASK_EVENT_RX_REQUEST);
-  
+  // Enqueue command into bounded queue (SPSC ring buffer).
+  // If queue is full, command is dropped (web should retry after timeout).
+  uint8_t next_tail = (epd_cmd_tail + 1) % EPD_CMD_QUEUE_SIZE;
+
+  if (next_tail == epd_cmd_head) {
+    HWUART_Printf("[EPD] queue full, drop cmd\r\n");
+    return;
+  }
+
+  epd_cmd_slot_t *slot = &epd_cmd_queue[epd_cmd_tail];
+  memcpy(slot->data, pMsg, length);
+  slot->len = length;
+
+  epd_cmd_tail = next_tail;
+  Event_post(hEPDEvent, EPDTASK_EVENT_RX_REQUEST);
 }

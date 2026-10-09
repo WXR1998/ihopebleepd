@@ -2,6 +2,10 @@
 #include "epd2in13.h"
 #include "hw_uart.h"
 
+// SPI/EPD error flag: set by SPI layer on failure, read by handle_cmd()
+// to propagate errors to the web response. 0 = no error.
+uint8_t epd_spi_error = 0;
+
 static void epd_spi_ensure_open(void);
 
 
@@ -141,6 +145,7 @@ static void DEV_SPI_WriteByte(uint8_t byte)
  
   if (!ok) {
     HwUARTPrintf("spi transf fail\r\n");
+    epd_spi_error = 0xf0;
   }
   
 }
@@ -202,6 +207,7 @@ static void epd_spi_ensure_open(void)
   SPI_Handle h = SPI_open(CC2640R2_LAUNCHXL_SPI0, &SPIparams);
   if (NULL == h) {
     HwUARTPrintf("spi reopen fail\r\n");
+    epd_spi_error = 0xf0;
     return;
   }
   SPIHandle = h;

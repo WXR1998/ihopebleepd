@@ -91,16 +91,16 @@
 #define DEFAULT_DISCOVERABLE_MODE             GAP_ADTYPE_FLAGS_GENERAL
 
 
-// Minimum connection interval (units of 1.25ms, 80=100ms) if automatic
+// Minimum connection interval (units of 1.25ms, 24=30ms) if automatic
 // parameter update request is enabled
-#define DEFAULT_DESIRED_MIN_CONN_INTERVAL     160  // 200ms
+#define DEFAULT_DESIRED_MIN_CONN_INTERVAL     24   // 30ms
 
-// Maximum connection interval (units of 1.25ms, 800=1000ms) if automatic
+// Maximum connection interval (units of 1.25ms, 40=50ms) if automatic
 // parameter update request is enabled
-#define DEFAULT_DESIRED_MAX_CONN_INTERVAL     160  // 200ms
+#define DEFAULT_DESIRED_MAX_CONN_INTERVAL     40   // 50ms
 
 // Slave latency to use if automatic parameter update request is enabled
-#define DEFAULT_DESIRED_SLAVE_LATENCY         4    // skip 4
+#define DEFAULT_DESIRED_SLAVE_LATENCY         0    // no skip (upload speed)
 
 // Supervision timeout value (units of 10ms, 1000=10s) if automatic parameter
 // update request is enabled
@@ -1175,6 +1175,24 @@ static void SPPBLEServer_processStateChangeEvt(gaprole_States_t newState)
       SPPBLEServer_freeAttRsp(bleNotConnected);
 
       HWUART_Printf("%s\r\n", "DISCONNECTED AFTER TIMEOUT...");
+
+      // 超时断连后回到阶段1 快广播；与 WAITING 分支同样处理
+      if (etagWasConnected)
+      {
+        uint16_t fastAdvInt = ADV_FAST_INTERVAL;
+        GAP_SetParamValue(TGAP_GEN_DISC_ADV_INT_MIN, fastAdvInt);
+        GAP_SetParamValue(TGAP_GEN_DISC_ADV_INT_MAX, fastAdvInt);
+        GAP_SetParamValue(TGAP_LIM_DISC_ADV_INT_MIN, fastAdvInt);
+        GAP_SetParamValue(TGAP_LIM_DISC_ADV_INT_MAX, fastAdvInt);
+        Util_startClock(&advPhaseClock);
+        etagWasConnected = FALSE;
+        // role 的断连自动重启可能已用旧慢参数开了广播——强制停→延迟重启
+        {
+          uint8_t advEnable = FALSE;
+          GAPRole_SetParameter(GAPROLE_ADVERT_ENABLED, sizeof(uint8_t), &advEnable);
+          Util_startClock(&advRestartClock);
+        }
+      }
       break;
 
     case GAPROLE_ERROR:
