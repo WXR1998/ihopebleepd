@@ -114,7 +114,7 @@
 #define DEFAULT_CONN_PAUSE_PERIPHERAL         6
 
 // Build identity, reported via Device Information Service (0x180A).
-#define ETAG_FW_VERSION                       "eTag-M3N-1.4"
+#define ETAG_FW_VERSION                       "eTag-M3N-1.5"
 
 // __DATE__ "Mmm dd yyyy" + __TIME__ "hh:mm:ss" -> "yyyy-mm-dd hh:mm:ss"
 // (19 chars, fits DEVINFO_STR_ATTR_LEN)
@@ -193,13 +193,15 @@ static const uint8_t bleNameConfig[BLE_NAME_MAX_LEN] = "ETAG-DEFAULT-0000000";
 #define SBP_PERIODIC_EVT                      Event_Id_00
 #define SBP_ADV_PHASE_EVT                     Event_Id_03
 #define SBP_UART_QUEUE_EVT                    Event_Id_02
+#define SBP_ADV_RESTART_EVT                   Event_Id_01
 
 
 #define SBP_ALL_EVENTS                        (SBP_ICALL_EVT        | \
                                                SBP_QUEUE_EVT        | \
                                                SBP_UART_QUEUE_EVT   | \
                                                SBP_PERIODIC_EVT     | \
-                                               SBP_ADV_PHASE_EVT)
+                                               SBP_ADV_PHASE_EVT    | \
+                                               SBP_ADV_RESTART_EVT)
 
 /*********************************************************************
  * TYPEDEFS
@@ -248,6 +250,7 @@ static ICall_SyncHandle syncEvent;
 // Clock instances for internal periodic events.
 static Clock_Struct periodicClock;
 static Clock_Struct advPhaseClock;
+static Clock_Struct advRestartClock;
 
 // Queue object used for app messages
 static Queue_Struct appMsg;
@@ -481,6 +484,10 @@ static void SPPBLEServer_init(void)
                       ADV_PHASE1_DURATION, 0, false, SBP_ADV_PHASE_EVT);
   Util_startClock(&advPhaseClock);
 
+  // 阶段2 切换用的延迟重启时钟（EndDiscoverable 异步完成后再启广播）
+  Util_constructClock(&advRestartClock, SPPBLEServer_clockHandler,
+                      100, 0, false, SBP_ADV_RESTART_EVT);
+
   //Board_initKeys(SPPBLEServer_keyChangeHandler);
 
   // Setup the GAP
@@ -670,15 +677,31 @@ static void SPPBLEServer_taskFxn(UArg a0, UArg a1)
         GAP_SetParamValue(TGAP_LIM_DISC_ADV_INT_MIN, slowAdvInt);
         GAP_SetParamValue(TGAP_LIM_DISC_ADV_INT_MAX, slowAdvInt);
 
-        // TGAP 广播间隔参数只在广播（重新）启动时被读取，对正在运行的
-        // 广播会话不生效——必须停→启一次广播。已连接时跳过（连接中无
-        // 广播，断连后重开广播自然使用新参数）。
+        // TGAP 间隔参数只在广播（重新）启动时被读取，此处仅停广播；
+        // 100ms 后由 SBP_ADV_RESTART_EVT 在状态落到 WAITING 后再启。
+        // 不能背靠背 FALSE/TRUE：peripheral.c 的 SetParameter 按 state
+        // 决定是否置 START_ADVERTISING_EVT，EndDiscoverable 未处理完
+        // （state 仍 ADVERTISING）时 TRUE 会被静默吞掉，广播永久停止。
         if (gapProfileState == GAPROLE_ADVERTISING)
         {
           uint8_t advEnable = FALSE;
           GAPRole_SetParameter(GAPROLE_ADVERT_ENABLED, sizeof(uint8_t), &advEnable);
-          advEnable = TRUE;
+          Util_startClock(&advRestartClock);
+        }
+      }
+
+      // 广播延迟重启（阶段2 切换的第二拍）
+      if (events & SBP_ADV_RESTART_EVT)
+      {
+        if (gapProfileState == GAPROLE_WAITING)
+        {
+          uint8_t advEnable = TRUE;
           GAPRole_SetParameter(GAPROLE_ADVERT_ENABLED, sizeof(uint8_t), &advEnable);
+        }
+        else if (gapProfileState == GAPROLE_ADVERTISING)
+        {
+          // 还没停稳，再等 100ms
+          Util_startClock(&advRestartClock);
         }
       }
 
