@@ -267,9 +267,8 @@ Char sbpTaskStack[SBP_TASK_STACK_SIZE];
 
 // Profile state and parameters
 static gaprole_States_t gapProfileState = GAPROLE_INIT;
-// 阶段切换意图：TRUE 表示等待中的 WAITING 属于阶段切换（不得恢复快广播）
-static uint8_t advPhaseSlow = FALSE;
-// 曾连接过：TRUE 表示当前 WAITING 是断连（应恢复阶段1 快广播）
+// 曾连接过：TRUE 表示当前 WAITING 是断连（应恢复阶段1 快广播）；
+// FALSE 表示是阶段切换造成的 WAITING（不得覆盖慢间隔参数）
 static uint8_t etagWasConnected = FALSE;
 
 
@@ -681,7 +680,6 @@ static void SPPBLEServer_taskFxn(UArg a0, UArg a1)
         GAP_SetParamValue(TGAP_GEN_DISC_ADV_INT_MAX, slowAdvInt);
         GAP_SetParamValue(TGAP_LIM_DISC_ADV_INT_MIN, slowAdvInt);
         GAP_SetParamValue(TGAP_LIM_DISC_ADV_INT_MAX, slowAdvInt);
-        advPhaseSlow = TRUE;
 
         // TGAP 间隔参数只在广播（重新）启动时被读取，此处仅停广播；
         // 100ms 后由 SBP_ADV_RESTART_EVT 在状态落到 WAITING 后再启。
@@ -1148,7 +1146,6 @@ static void SPPBLEServer_processStateChangeEvt(gaprole_States_t newState)
         GAP_SetParamValue(TGAP_LIM_DISC_ADV_INT_MAX, fastAdvInt);
         Util_startClock(&advPhaseClock);
         etagWasConnected = FALSE;
-        advPhaseSlow = FALSE;
       }
       break;
 
