@@ -113,6 +113,11 @@
 // Connection Pause Peripheral time value (in seconds)
 #define DEFAULT_CONN_PAUSE_PERIPHERAL         6
 
+// Build identity, reported via Device Information Service (0x180A).
+// Both strings must stay <= DEVINFO_STR_ATTR_LEN (20) bytes.
+#define ETAG_FW_VERSION                       "eTag-M3N-1.2"
+#define ETAG_FW_BUILD                         (__DATE__ " " __TIME__)
+
 // Flash-time BLE identity configuration. Keep this marker fixed-width so the
 // compressed IAR .data initializer never has to be decoded by host tools.
 #define BLE_NAME_MAX_LEN                      20
@@ -492,7 +497,9 @@ static void SPPBLEServer_init(void)
    // Initialize GATT attributes
   GGS_AddService(GATT_ALL_SERVICES);           // GAP
   GATTServApp_AddService(GATT_ALL_SERVICES);   // GATT attributes
-  DevInfo_AddService();                        // Device Information Service
+  DevInfo_AddService();
+  DevInfo_SetParameter(DEVINFO_SOFTWARE_REV, (uint8)(sizeof(ETAG_FW_VERSION) - 1), (uint8 *)ETAG_FW_VERSION);
+  DevInfo_SetParameter(DEVINFO_FIRMWARE_REV, (uint8)(sizeof(ETAG_FW_BUILD) - 1), (uint8 *)ETAG_FW_BUILD);                        // Device Information Service
 
   SerialPortService_AddService(GATT_ALL_SERVICES);  //SerialPortBLE service
 
