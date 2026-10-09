@@ -114,7 +114,7 @@
 #define DEFAULT_CONN_PAUSE_PERIPHERAL         6
 
 // Build identity, reported via Device Information Service (0x180A).
-#define ETAG_FW_VERSION                       "eTag-M3N-1.9"
+#define ETAG_FW_VERSION                       "eTag-M3N-1.10"
 
 // __DATE__ "Mmm dd yyyy" + __TIME__ "hh:mm:ss" -> "yyyy-mm-dd hh:mm:ss"
 // (19 chars, fits DEVINFO_STR_ATTR_LEN)
@@ -193,6 +193,10 @@ static const uint8_t bleNameConfig[BLE_NAME_MAX_LEN] = "ETAG-DEFAULT-0000000";
 #define SBP_PERIODIC_EVT                      Event_Id_00
 #define SBP_ADV_PHASE_EVT                     Event_Id_03
 #define SBP_ADV_HEARTBEAT_EVT                 Event_Id_04
+
+// 协议栈 peripheral.c 里记录的最近一次 GAP_MakeDiscoverable 返回码
+// （role 任务栈浅，不能在里面 printf，只写全局，由 app 心跳代读）
+extern volatile int g_etagMdRet;
 #define SBP_UART_QUEUE_EVT                    Event_Id_02
 #define SBP_ADV_RESTART_EVT                   Event_Id_01
 
@@ -707,13 +711,13 @@ static void SPPBLEServer_taskFxn(UArg a0, UArg a1)
       // 诊断心跳
       if (events & SBP_ADV_HEARTBEAT_EVT)
       {
-        HWUART_Printf("[TICK] st=%d\r\n", (int)gapProfileState);
+        HWUART_Printf("[TICK] st=%d md=%d\r\n", (int)gapProfileState, g_etagMdRet);
       }
 
       // 广播延迟重启（阶段2 切换的第二拍）
       if (events & SBP_ADV_RESTART_EVT)
       {
-        HWUART_Printf("[RESTART] st=%d\r\n", (int)gapProfileState);
+        HWUART_Printf("[RESTART] st=%d md=%d\r\n", (int)gapProfileState, g_etagMdRet);
         if (gapProfileState == GAPROLE_WAITING)
         {
           uint8_t advEnable = TRUE;
