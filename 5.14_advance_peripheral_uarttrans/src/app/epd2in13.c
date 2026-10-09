@@ -2,6 +2,8 @@
 #include "epd2in13.h"
 #include "hw_uart.h"
 
+static void epd_spi_ensure_open(void);
+
 
 #include <ti/drivers/SPI.h>
 #include <ti/drivers/spi/SPICC26XXDMA.h>
