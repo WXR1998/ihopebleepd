@@ -114,7 +114,7 @@
 #define DEFAULT_CONN_PAUSE_PERIPHERAL         6
 
 // Build identity, reported via Device Information Service (0x180A).
-#define ETAG_FW_VERSION                       "eTag-M3N-1.8"
+#define ETAG_FW_VERSION                       "eTag-M3N-1.9"
 
 // __DATE__ "Mmm dd yyyy" + __TIME__ "hh:mm:ss" -> "yyyy-mm-dd hh:mm:ss"
 // (19 chars, fits DEVINFO_STR_ATTR_LEN)
@@ -192,6 +192,7 @@ static const uint8_t bleNameConfig[BLE_NAME_MAX_LEN] = "ETAG-DEFAULT-0000000";
 #define SBP_QUEUE_EVT                         UTIL_QUEUE_EVENT_ID // Event_Id_30
 #define SBP_PERIODIC_EVT                      Event_Id_00
 #define SBP_ADV_PHASE_EVT                     Event_Id_03
+#define SBP_ADV_HEARTBEAT_EVT                 Event_Id_04
 #define SBP_UART_QUEUE_EVT                    Event_Id_02
 #define SBP_ADV_RESTART_EVT                   Event_Id_01
 
@@ -201,7 +202,8 @@ static const uint8_t bleNameConfig[BLE_NAME_MAX_LEN] = "ETAG-DEFAULT-0000000";
                                                SBP_UART_QUEUE_EVT   | \
                                                SBP_PERIODIC_EVT     | \
                                                SBP_ADV_PHASE_EVT    | \
-                                               SBP_ADV_RESTART_EVT)
+                                               SBP_ADV_RESTART_EVT  | \
+                                               SBP_ADV_HEARTBEAT_EVT)
 
 /*********************************************************************
  * TYPEDEFS
@@ -251,6 +253,7 @@ static ICall_SyncHandle syncEvent;
 static Clock_Struct periodicClock;
 static Clock_Struct advPhaseClock;
 static Clock_Struct advRestartClock;
+static Clock_Struct heartbeatClock;
 
 // Queue object used for app messages
 static Queue_Struct appMsg;
@@ -491,6 +494,10 @@ static void SPPBLEServer_init(void)
   Util_constructClock(&advRestartClock, SPPBLEServer_clockHandler,
                       100, 0, false, SBP_ADV_RESTART_EVT);
 
+  // 诊断心跳：每 10s 打印 state（观察 app 任务活性与 60s 窗口）
+  Util_constructClock(&heartbeatClock, SPPBLEServer_clockHandler,
+                      10000, 10000, true, SBP_ADV_HEARTBEAT_EVT);
+
 
   //Board_initKeys(SPPBLEServer_keyChangeHandler);
 
@@ -695,6 +702,12 @@ static void SPPBLEServer_taskFxn(UArg a0, UArg a1)
         {
           HWUART_Printf("[PHASE] st!=ADV skip\r\n");
         }
+      }
+
+      // 诊断心跳
+      if (events & SBP_ADV_HEARTBEAT_EVT)
+      {
+        HWUART_Printf("[TICK] st=%d\r\n", (int)gapProfileState);
       }
 
       // 广播延迟重启（阶段2 切换的第二拍）
