@@ -1,5 +1,6 @@
 
 #include "epd2in13.h"
+#include "hw_uart.h"
 
 
 #include <ti/drivers/SPI.h>
@@ -253,7 +254,7 @@ void EPD_2IN13_ReadBusy(void)
     while(DEV_Digital_Read(EPD_BUSY_PIN) == 1) {      //LOW: idle, HIGH: busy
         DEV_Delay_ms(100);
         if (++busy_wait % 20 == 0) {
-            HwUARTPrintf("e-Paper busy %ds\r\n", busy_wait / 10);
+            HWUART_Printf("e-Paper busy %ds\r\n", busy_wait / 10);
         }
         if (busy_wait >= 200) {  // 防卡死：20s 超时，宁可本次刷屏失败也不拖死整机
             HwUARTPrintf("e-Paper busy TIMEOUT!\r\n");
