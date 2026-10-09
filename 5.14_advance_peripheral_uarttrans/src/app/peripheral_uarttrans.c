@@ -113,6 +113,14 @@
 // Connection Pause Peripheral time value (in seconds)
 #define DEFAULT_CONN_PAUSE_PERIPHERAL         6
 
+// Flash-time BLE identity configuration. Keep this marker fixed-width so the
+// compressed IAR .data initializer never has to be decoded by host tools.
+#define BLE_NAME_MAX_LEN                      20
+
+// Replaced by tools/patch_ble_name.py before flashing. The runtime compacts
+// the scan-response AD structure and applies the same value to GATT.
+static const uint8_t bleNameConfig[BLE_NAME_MAX_LEN] = "ETAG-DEFAULT-0000000";
+
 // How often to perform periodic event (in msec)
 #define SBP_PERIODIC_EVT_PERIOD               5000
 
@@ -271,6 +279,27 @@ static uint8_t advertData[] =
 
 // GAP GATT Attributes
 static uint8_t attDeviceName[GAP_DEVICE_NAME_LEN] = "SPP BLE Server";
+static uint8_t scanRspDataLen;
+
+static void SPPBLEServer_applyBleName(void)
+{
+  uint8_t nameLen = BLE_NAME_MAX_LEN;
+  uint8_t scanTail[sizeof(scanRspData) - 2 - BLE_NAME_MAX_LEN];
+
+  while (nameLen > 0 && bleNameConfig[nameLen - 1] == 0)
+  {
+    --nameLen;
+  }
+
+  // Save the AD structures following the fixed-width name before compacting.
+  memcpy(scanTail, &scanRspData[2 + BLE_NAME_MAX_LEN], sizeof(scanTail));
+  memset(attDeviceName, 0, sizeof(attDeviceName));
+  memcpy(attDeviceName, bleNameConfig, BLE_NAME_MAX_LEN);
+  memcpy(&scanRspData[2], bleNameConfig, BLE_NAME_MAX_LEN);
+  memcpy(&scanRspData[2 + nameLen], scanTail, sizeof(scanTail));
+  scanRspData[0] = nameLen + 1; // AD type byte plus name bytes
+  scanRspDataLen = sizeof(scanRspData) - (BLE_NAME_MAX_LEN - nameLen);
+}
 
 // Globals used for ATT Response retransmission
 static gattMsgEvent_t *pAttRsp = NULL;
@@ -407,6 +436,7 @@ static void SPPBLEServer_init(void)
 
   // Setup the GAP
   GAP_SetParamValue(TGAP_CONN_PAUSE_PERIPHERAL, DEFAULT_CONN_PAUSE_PERIPHERAL);
+   SPPBLEServer_applyBleName();
 
   // Setup the GAP Peripheral Role Profile
   {
@@ -430,7 +460,7 @@ static void SPPBLEServer_init(void)
     GAPRole_SetParameter(GAPROLE_ADVERT_OFF_TIME, sizeof(uint16_t),
                          &advertOffTime);
 
-    GAPRole_SetParameter(GAPROLE_SCAN_RSP_DATA, sizeof(scanRspData),
+    GAPRole_SetParameter(GAPROLE_SCAN_RSP_DATA, scanRspDataLen,
                          scanRspData);
     GAPRole_SetParameter(GAPROLE_ADVERT_DATA, sizeof(advertData), advertData);
 
