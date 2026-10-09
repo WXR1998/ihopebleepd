@@ -7,7 +7,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-#ifdef USE_UART_DEBUG
+#if USE_UART_DEBUG
 
 static UART_Handle UARTHandle;
 static UART_Params UARTparams;

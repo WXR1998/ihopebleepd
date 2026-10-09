@@ -197,7 +197,7 @@ int main()
   /* SDI UART Example Task - Priority 2 */
  // SDITask_createTask();
 
-#ifdef USE_UART_DEBUG
+#if USE_UART_DEBUG
   HWUART_Init();
 #endif // USE_UART_DEBUG
   

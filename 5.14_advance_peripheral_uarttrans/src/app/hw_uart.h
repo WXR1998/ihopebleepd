@@ -8,7 +8,7 @@
 
 
 
-#ifdef USE_UART_DEBUG
+#if USE_UART_DEBUG
 void HWUART_Init(void);
 void HWUART_Printf(const char* format, ...);
 void HWUART_Close(void);
