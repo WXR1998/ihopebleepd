@@ -188,6 +188,7 @@ void post_epd_response(uint8_t *buf, uint16_t len)
 bool epd_initialized = false;
 void handle_cmd()
 {
+  HWUART_Printf("[EPD] cmd enter\r\n");
   uint8_t cmd = epd_rx_frame[0];
   
   resp_fram_len  = 2;

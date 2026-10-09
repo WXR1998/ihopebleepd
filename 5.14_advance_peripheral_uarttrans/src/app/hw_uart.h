@@ -3,6 +3,9 @@
 
 #include <stddef.h>
 
+// 诊断构建：1.14 临时点亮（EPD 卡死追捕），完成后移除
+#define USE_UART_DEBUG 1
+
 
 
 #ifdef USE_UART_DEBUG

@@ -99,7 +99,7 @@ static void Util_delay_ms(uint16_t t)
 
 static void HwUARTPrintf(const char *str)
 {
- // HWUART_Printf(str);
+  HWUART_Printf(str);
 }
 
 static void DEV_Digital_Write(uint32_t pin, uint8_t value)
@@ -248,11 +248,19 @@ parameter:
 ******************************************************************************/
 void EPD_2IN13_ReadBusy(void)
 {
+    int busy_wait = 0;
     HwUARTPrintf("e-Paper busy\r\n");
     while(DEV_Digital_Read(EPD_BUSY_PIN) == 1) {      //LOW: idle, HIGH: busy
         DEV_Delay_ms(100);
+        if (++busy_wait % 20 == 0) {
+            HwUARTPrintf("e-Paper busy %ds\r\n", busy_wait / 10);
+        }
+        if (busy_wait >= 200) {  // 防卡死：20s 超时，宁可本次刷屏失败也不拖死整机
+            HwUARTPrintf("e-Paper busy TIMEOUT!\r\n");
+            break;
+        }
     }
-    HwUARTPrintf("e-Paper busy release\r\n");
+    HwUARTPrintf("e-Paper busy release %d\r\n", busy_wait / 10);
 }
 
 
