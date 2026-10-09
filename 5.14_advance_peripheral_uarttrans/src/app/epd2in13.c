@@ -127,6 +127,8 @@ static void DEV_SPI_WriteByte(uint8_t byte)
     
     txbuf[0] = byte;
     
+  epd_spi_ensure_open();
+
   SPI_Transaction spiTransaction;
   spiTransaction.arg = NULL;
   spiTransaction.count = 1;
@@ -186,6 +188,22 @@ void epd_hw_init()
     HwUARTPrintf("spi open fail\r\n");
   }
   
+}
+
+// EPD_2IN13_Sleep 每次刷屏后关闭 SPI（省电）；此处按需重开，
+// 否则第二次刷屏会拿 NULL 句柄调 SPI_transfer 直接硬故障。
+static void epd_spi_ensure_open(void)
+{
+  if (SPIHandle) {
+    return;
+  }
+  SPI_Handle h = SPI_open(CC2640R2_LAUNCHXL_SPI0, &SPIparams);
+  if (NULL == h) {
+    HwUARTPrintf("spi reopen fail\r\n");
+    return;
+  }
+  SPIHandle = h;
+  HwUARTPrintf("spi reopen\r\n");
 }
 
 /******************************************************************************
