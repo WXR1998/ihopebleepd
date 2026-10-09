@@ -9,6 +9,11 @@
 #include <ti/sysbios/knl/Clock.h>
 #include <ti/sysbios/knl/Event.h>
 
+// 网页手动复位（RST 指令）：SysCtrlSystemReset 来自 driverlib，
+// 写 AON_SYSCTL SYSRESET 位，整芯片软复位，等效拉 NRST
+#include <ti/devices/DeviceFamily.h>
+#include DeviceFamily_constructPath(driverlib/sys_ctrl.h)
+
 #include "board.h"
 //#include <ti/drivers/uart/UARTCC26XX.h>
 #include "task_epd.h"
@@ -55,6 +60,7 @@ enum {
   EPD_CMD_PREPARE_BLK = 0x4,
   EPD_CMD_PREPARE_RED = 0x5,
   EPD_CMD_SHUTDOWN = 0x6,
+  EPD_CMD_RESET = 0x7,
 };
  
  
@@ -249,6 +255,11 @@ void handle_cmd()
       ASSERT_INIT;
       EPD_Display();
       epd_initialized = false;
+      break;
+    case EPD_CMD_RESET:
+      // 不回 ACK——复位后链路即刻消失，网页以断开事件为确认
+      HWUART_Printf("RST: system reset (NRST-equivalent)\r\n");
+      SysCtrlSystemReset();
       break;
     default:
       HWUART_Printf("unknown cmd\r\n");
