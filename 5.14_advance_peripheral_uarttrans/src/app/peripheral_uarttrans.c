@@ -83,7 +83,7 @@
 
 // Two-phase advertising intervals
 #define ADV_FAST_INTERVAL    160    // 100ms (Phase 1)
-#define ADV_SLOW_INTERVAL    16000  // 10s (Phase 2)
+#define ADV_SLOW_INTERVAL    3200   // 2s (Phase 2)——10s 时 Chrome/iOS 连接发起超时，折中取 2s
 #define ADV_PHASE1_DURATION  60000  // 60 seconds in ms
 
 // Limited discoverable mode advertises for 30.72s, and then stops
@@ -114,7 +114,7 @@
 #define DEFAULT_CONN_PAUSE_PERIPHERAL         6
 
 // Build identity, reported via Device Information Service (0x180A).
-#define ETAG_FW_VERSION                       "eTag-M3N-1.11"
+#define ETAG_FW_VERSION                       "eTag-M3N-1.12"
 
 // __DATE__ "Mmm dd yyyy" + __TIME__ "hh:mm:ss" -> "yyyy-mm-dd hh:mm:ss"
 // (19 chars, fits DEVINFO_STR_ATTR_LEN)
