@@ -277,6 +277,14 @@ void EPD_2IN13_ReadBusy(void)
 {
     int busy_wait = 0;
     HwUARTPrintf("e-Paper busy\r\n");
+
+    // 面板断电时 BUSY 被上拉读成 HIGH，会白等满 20s——快速失败并标记
+    if (DEV_Digital_Read(EPD_POWER_PIN) == 1) {
+        HwUARTPrintf("e-Paper busy: PANEL POWER OFF!\r\n");
+        epd_spi_error = 0xf2;
+        return;
+    }
+
     while(DEV_Digital_Read(EPD_BUSY_PIN) == 1) {      //LOW: idle, HIGH: busy
         DEV_Delay_ms(100);
         if (++busy_wait % 20 == 0) {
@@ -284,6 +292,7 @@ void EPD_2IN13_ReadBusy(void)
         }
         if (busy_wait >= 200) {  // 防卡死：20s 超时，宁可本次刷屏失败也不拖死整机
             HwUARTPrintf("e-Paper busy TIMEOUT!\r\n");
+            epd_spi_error = 0xf1;  // busy 超时：本次刷屏未完成，通过应答上报
             break;
         }
     }
