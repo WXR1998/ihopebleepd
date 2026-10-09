@@ -254,7 +254,9 @@ static ICall_SyncHandle syncEvent;
 static Clock_Struct periodicClock;
 static Clock_Struct advPhaseClock;
 static Clock_Struct advRestartClock;
+#if USE_UART_DEBUG
 static Clock_Struct heartbeatClock;
+#endif
 
 // Queue object used for app messages
 static Queue_Struct appMsg;
@@ -495,9 +497,11 @@ static void SPPBLEServer_init(void)
   Util_constructClock(&advRestartClock, SPPBLEServer_clockHandler,
                       100, 0, false, SBP_ADV_RESTART_EVT);
 
-  // 诊断心跳：每 10s
+#if USE_UART_DEBUG
+  // 诊断心跳：每 10s（正式版不构造，避免周期性唤醒妨碍 Standby）
   Util_constructClock(&heartbeatClock, SPPBLEServer_clockHandler,
                       10000, 10000, true, SBP_ADV_HEARTBEAT_EVT);
+#endif
 
 
 
@@ -700,11 +704,13 @@ static void SPPBLEServer_taskFxn(UArg a0, UArg a1)
         }
       }
 
+#if USE_UART_DEBUG
       // 诊断心跳
       if (events & SBP_ADV_HEARTBEAT_EVT)
       {
         HWUART_Printf("[TICK] st=%d\r\n", (int)gapProfileState);
       }
+#endif
 
       // 广播延迟重启（阶段2 切换的第二拍）
       if (events & SBP_ADV_RESTART_EVT)

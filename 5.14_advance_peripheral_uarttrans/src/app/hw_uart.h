@@ -3,8 +3,8 @@
 
 #include <stddef.h>
 
-// 诊断构建：1.14 临时点亮（EPD 卡死追捕），完成后移除
-#define USE_UART_DEBUG 1
+// 诊断 UART：1 = 追捕期开启（会阻止 Standby，勿用于功耗测量）；0 = 正式版省电
+#define USE_UART_DEBUG 0
 
 
 
