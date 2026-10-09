@@ -114,7 +114,7 @@
 #define DEFAULT_CONN_PAUSE_PERIPHERAL         6
 
 // Build identity, reported via Device Information Service (0x180A).
-#define ETAG_FW_VERSION                       "eTag-M3N-1.10"
+#define ETAG_FW_VERSION                       "eTag-M3N-1.11"
 
 // __DATE__ "Mmm dd yyyy" + __TIME__ "hh:mm:ss" -> "yyyy-mm-dd hh:mm:ss"
 // (19 chars, fits DEVINFO_STR_ATTR_LEN)
@@ -192,11 +192,7 @@ static const uint8_t bleNameConfig[BLE_NAME_MAX_LEN] = "ETAG-DEFAULT-0000000";
 #define SBP_QUEUE_EVT                         UTIL_QUEUE_EVENT_ID // Event_Id_30
 #define SBP_PERIODIC_EVT                      Event_Id_00
 #define SBP_ADV_PHASE_EVT                     Event_Id_03
-#define SBP_ADV_HEARTBEAT_EVT                 Event_Id_04
 
-// 协议栈 peripheral.c 里记录的最近一次 GAP_MakeDiscoverable 返回码
-// （role 任务栈浅，不能在里面 printf，只写全局，由 app 心跳代读）
-extern volatile int g_etagMdRet;
 #define SBP_UART_QUEUE_EVT                    Event_Id_02
 #define SBP_ADV_RESTART_EVT                   Event_Id_01
 
@@ -206,8 +202,7 @@ extern volatile int g_etagMdRet;
                                                SBP_UART_QUEUE_EVT   | \
                                                SBP_PERIODIC_EVT     | \
                                                SBP_ADV_PHASE_EVT    | \
-                                               SBP_ADV_RESTART_EVT  | \
-                                               SBP_ADV_HEARTBEAT_EVT)
+                                               SBP_ADV_RESTART_EVT)
 
 /*********************************************************************
  * TYPEDEFS
@@ -257,7 +252,6 @@ static ICall_SyncHandle syncEvent;
 static Clock_Struct periodicClock;
 static Clock_Struct advPhaseClock;
 static Clock_Struct advRestartClock;
-static Clock_Struct heartbeatClock;
 
 // Queue object used for app messages
 static Queue_Struct appMsg;
@@ -498,9 +492,6 @@ static void SPPBLEServer_init(void)
   Util_constructClock(&advRestartClock, SPPBLEServer_clockHandler,
                       100, 0, false, SBP_ADV_RESTART_EVT);
 
-  // 诊断心跳：每 10s 打印 state（观察 app 任务活性与 60s 窗口）
-  Util_constructClock(&heartbeatClock, SPPBLEServer_clockHandler,
-                      10000, 10000, true, SBP_ADV_HEARTBEAT_EVT);
 
 
   //Board_initKeys(SPPBLEServer_keyChangeHandler);
@@ -694,35 +685,21 @@ static void SPPBLEServer_taskFxn(UArg a0, UArg a1)
 
         // TGAP 间隔参数只在广播（重新）启动时被读取，此处仅停广播；
         // 100ms 后由 SBP_ADV_RESTART_EVT 在状态落到 WAITING 后再启。
-        HWUART_Printf("[PHASE] st=%d\r\n", (int)gapProfileState);
         if (gapProfileState == GAPROLE_ADVERTISING)
         {
           uint8_t advEnable = FALSE;
-          bStatus_t sr = GAPRole_SetParameter(GAPROLE_ADVERT_ENABLED, sizeof(uint8_t), &advEnable);
-          HWUART_Printf("[PHASE] stop ret=%d\r\n", (int)sr);
+          GAPRole_SetParameter(GAPROLE_ADVERT_ENABLED, sizeof(uint8_t), &advEnable);
           Util_startClock(&advRestartClock);
         }
-        else
-        {
-          HWUART_Printf("[PHASE] st!=ADV skip\r\n");
-        }
-      }
-
-      // 诊断心跳
-      if (events & SBP_ADV_HEARTBEAT_EVT)
-      {
-        HWUART_Printf("[TICK] st=%d md=%d\r\n", (int)gapProfileState, g_etagMdRet);
       }
 
       // 广播延迟重启（阶段2 切换的第二拍）
       if (events & SBP_ADV_RESTART_EVT)
       {
-        HWUART_Printf("[RESTART] st=%d md=%d\r\n", (int)gapProfileState, g_etagMdRet);
         if (gapProfileState == GAPROLE_WAITING)
         {
           uint8_t advEnable = TRUE;
-          bStatus_t sr = GAPRole_SetParameter(GAPROLE_ADVERT_ENABLED, sizeof(uint8_t), &advEnable);
-          HWUART_Printf("[RESTART] setRet=%d\r\n", (int)sr);
+          GAPRole_SetParameter(GAPROLE_ADVERT_ENABLED, sizeof(uint8_t), &advEnable);
         }
         else
         {
@@ -1181,7 +1158,6 @@ static void SPPBLEServer_processStateChangeEvt(gaprole_States_t newState)
       break;
 
     case GAPROLE_ERROR:
-      HWUART_Printf("%s\r\n", "STATE=ERROR");
       break;
 
     default:
