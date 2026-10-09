@@ -114,9 +114,53 @@
 #define DEFAULT_CONN_PAUSE_PERIPHERAL         6
 
 // Build identity, reported via Device Information Service (0x180A).
-// Both strings must stay <= DEVINFO_STR_ATTR_LEN (20) bytes.
-#define ETAG_FW_VERSION                       "eTag-M3N-1.2"
-#define ETAG_FW_BUILD                         (__DATE__ " " __TIME__)
+#define ETAG_FW_VERSION                       "eTag-M3N-1.3"
+
+// __DATE__ "Mmm dd yyyy" + __TIME__ "hh:mm:ss" -> "yyyy-mm-dd hh:mm:ss"
+// (19 chars, fits DEVINFO_STR_ATTR_LEN)
+static uint8_t etagBuildStamp[20];
+
+static void SPPBLEServer_formatBuildStamp(void)
+{
+  static const char months[36] = "JanFebMarAprMayJunJulAugSepOctNovDec";
+  const char *d = __DATE__;
+  const char *t = __TIME__;
+  uint8_t i;
+  uint8_t month = 1;
+  uint8_t day;
+
+  for (i = 0; i < 12; ++i) {
+    if (d[0] == months[i * 3] && d[1] == months[i * 3 + 1] && d[2] == months[i * 3 + 2]) {
+      month = (uint8_t)(i + 1);
+      break;
+    }
+  }
+  day = (uint8_t)(d[5] - '0');
+  if (d[4] != ' ') {
+    day = (uint8_t)(day + (d[4] - '0') * 10);
+  }
+
+  etagBuildStamp[0]  = d[7];
+  etagBuildStamp[1]  = d[8];
+  etagBuildStamp[2]  = d[9];
+  etagBuildStamp[3]  = d[10];
+  etagBuildStamp[4]  = '-';
+  etagBuildStamp[5]  = (uint8_t)('0' + month / 10);
+  etagBuildStamp[6]  = (uint8_t)('0' + month % 10);
+  etagBuildStamp[7]  = '-';
+  etagBuildStamp[8]  = (uint8_t)('0' + day / 10);
+  etagBuildStamp[9]  = (uint8_t)('0' + day % 10);
+  etagBuildStamp[10] = ' ';
+  etagBuildStamp[11] = t[0];
+  etagBuildStamp[12] = t[1];
+  etagBuildStamp[13] = t[2];
+  etagBuildStamp[14] = t[3];
+  etagBuildStamp[15] = t[4];
+  etagBuildStamp[16] = t[5];
+  etagBuildStamp[17] = t[6];
+  etagBuildStamp[18] = t[7];
+  etagBuildStamp[19] = '\0';
+}
 
 // Flash-time BLE identity configuration. Keep this marker fixed-width so the
 // compressed IAR .data initializer never has to be decoded by host tools.
@@ -499,7 +543,8 @@ static void SPPBLEServer_init(void)
   GATTServApp_AddService(GATT_ALL_SERVICES);   // GATT attributes
   DevInfo_AddService();
   DevInfo_SetParameter(DEVINFO_SOFTWARE_REV, (uint8)(sizeof(ETAG_FW_VERSION) - 1), (uint8 *)ETAG_FW_VERSION);
-  DevInfo_SetParameter(DEVINFO_FIRMWARE_REV, (uint8)(sizeof(ETAG_FW_BUILD) - 1), (uint8 *)ETAG_FW_BUILD);                        // Device Information Service
+  SPPBLEServer_formatBuildStamp();
+  DevInfo_SetParameter(DEVINFO_FIRMWARE_REV, (uint8)(sizeof(etagBuildStamp) - 1), etagBuildStamp);                        // Device Information Service
 
   SerialPortService_AddService(GATT_ALL_SERVICES);  //SerialPortBLE service
 
