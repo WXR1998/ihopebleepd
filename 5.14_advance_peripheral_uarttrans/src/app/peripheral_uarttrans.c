@@ -114,7 +114,7 @@
 #define DEFAULT_CONN_PAUSE_PERIPHERAL         6
 
 // Build identity, reported via Device Information Service (0x180A).
-#define ETAG_FW_VERSION                       "eTag-M3N-1.5"
+#define ETAG_FW_VERSION                       "eTag-M3N-1.6"
 
 // __DATE__ "Mmm dd yyyy" + __TIME__ "hh:mm:ss" -> "yyyy-mm-dd hh:mm:ss"
 // (19 chars, fits DEVINFO_STR_ATTR_LEN)
@@ -194,6 +194,7 @@ static const uint8_t bleNameConfig[BLE_NAME_MAX_LEN] = "ETAG-DEFAULT-0000000";
 #define SBP_ADV_PHASE_EVT                     Event_Id_03
 #define SBP_UART_QUEUE_EVT                    Event_Id_02
 #define SBP_ADV_RESTART_EVT                   Event_Id_01
+#define SBP_ADV_DEBUG_EVT                     Event_Id_04
 
 
 #define SBP_ALL_EVENTS                        (SBP_ICALL_EVT        | \
@@ -201,7 +202,8 @@ static const uint8_t bleNameConfig[BLE_NAME_MAX_LEN] = "ETAG-DEFAULT-0000000";
                                                SBP_UART_QUEUE_EVT   | \
                                                SBP_PERIODIC_EVT     | \
                                                SBP_ADV_PHASE_EVT    | \
-                                               SBP_ADV_RESTART_EVT)
+                                               SBP_ADV_RESTART_EVT  | \
+                                               SBP_ADV_DEBUG_EVT)
 
 /*********************************************************************
  * TYPEDEFS
@@ -251,6 +253,7 @@ static ICall_SyncHandle syncEvent;
 static Clock_Struct periodicClock;
 static Clock_Struct advPhaseClock;
 static Clock_Struct advRestartClock;
+static Clock_Struct advDebugClock;
 
 // Queue object used for app messages
 static Queue_Struct appMsg;
@@ -488,6 +491,10 @@ static void SPPBLEServer_init(void)
   Util_constructClock(&advRestartClock, SPPBLEServer_clockHandler,
                       100, 0, false, SBP_ADV_RESTART_EVT);
 
+  // 调试探针：每 30s 打印 state/advEnabled（30/60/90/120s 正好覆盖切换点）
+  Util_constructClock(&advDebugClock, SPPBLEServer_clockHandler,
+                      30000, 30000, true, SBP_ADV_DEBUG_EVT);
+
   //Board_initKeys(SPPBLEServer_keyChangeHandler);
 
   // Setup the GAP
@@ -672,21 +679,25 @@ static void SPPBLEServer_taskFxn(UArg a0, UArg a1)
       {
         // Switch from fast (Phase 1) to slow (Phase 2) advertising
         uint16_t slowAdvInt = ADV_SLOW_INTERVAL;
-        GAP_SetParamValue(TGAP_GEN_DISC_ADV_INT_MIN, slowAdvInt);
-        GAP_SetParamValue(TGAP_GEN_DISC_ADV_INT_MAX, slowAdvInt);
-        GAP_SetParamValue(TGAP_LIM_DISC_ADV_INT_MIN, slowAdvInt);
-        GAP_SetParamValue(TGAP_LIM_DISC_ADV_INT_MAX, slowAdvInt);
+        bStatus_t r1 = GAP_SetParamValue(TGAP_GEN_DISC_ADV_INT_MIN, slowAdvInt);
+        bStatus_t r2 = GAP_SetParamValue(TGAP_GEN_DISC_ADV_INT_MAX, slowAdvInt);
+        bStatus_t r3 = GAP_SetParamValue(TGAP_LIM_DISC_ADV_INT_MIN, slowAdvInt);
+        bStatus_t r4 = GAP_SetParamValue(TGAP_LIM_DISC_ADV_INT_MAX, slowAdvInt);
 
         // TGAP 间隔参数只在广播（重新）启动时被读取，此处仅停广播；
         // 100ms 后由 SBP_ADV_RESTART_EVT 在状态落到 WAITING 后再启。
-        // 不能背靠背 FALSE/TRUE：peripheral.c 的 SetParameter 按 state
-        // 决定是否置 START_ADVERTISING_EVT，EndDiscoverable 未处理完
-        // （state 仍 ADVERTISING）时 TRUE 会被静默吞掉，广播永久停止。
+        HWUART_Printf("[PHASE] st=%d r=%d,%d,%d,%d\r\n",
+                      (int)gapProfileState, (int)r1, (int)r2, (int)r3, (int)r4);
         if (gapProfileState == GAPROLE_ADVERTISING)
         {
           uint8_t advEnable = FALSE;
-          GAPRole_SetParameter(GAPROLE_ADVERT_ENABLED, sizeof(uint8_t), &advEnable);
+          bStatus_t sr = GAPRole_SetParameter(GAPROLE_ADVERT_ENABLED, sizeof(uint8_t), &advEnable);
+          HWUART_Printf("[PHASE] stop ret=%d\r\n", (int)sr);
           Util_startClock(&advRestartClock);
+        }
+        else
+        {
+          HWUART_Printf("[PHASE] not advertising, skip\r\n");
         }
       }
 
@@ -696,13 +707,27 @@ static void SPPBLEServer_taskFxn(UArg a0, UArg a1)
         if (gapProfileState == GAPROLE_WAITING)
         {
           uint8_t advEnable = TRUE;
-          GAPRole_SetParameter(GAPROLE_ADVERT_ENABLED, sizeof(uint8_t), &advEnable);
+          bStatus_t sr = GAPRole_SetParameter(GAPROLE_ADVERT_ENABLED, sizeof(uint8_t), &advEnable);
+          HWUART_Printf("[RESTART] st=WAITING setRet=%d\r\n", (int)sr);
         }
         else if (gapProfileState == GAPROLE_ADVERTISING)
         {
           // 还没停稳，再等 100ms
+          HWUART_Printf("[RESTART] st=ADV retry\r\n");
           Util_startClock(&advRestartClock);
         }
+        else
+        {
+          HWUART_Printf("[RESTART] st=%d unexpected\r\n", (int)gapProfileState);
+        }
+      }
+
+      // 调试探针：30s 心跳
+      if (events & SBP_ADV_DEBUG_EVT)
+      {
+        uint8_t advEn = 0;
+        GAPRole_GetParameter(GAPROLE_ADVERT_ENABLED, &advEn);
+        HWUART_Printf("[DBG] st=%d advEn=%d\r\n", (int)gapProfileState, (int)advEn);
       }
 
       if (events & SBP_UART_QUEUE_EVT)

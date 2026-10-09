@@ -3,6 +3,9 @@
 
 #include <stddef.h>
 
+// 调试构建：串口探针定位阶段2 切换。定版后移除此行。
+#define USE_UART_DEBUG 1
+
 #ifdef USE_UART_DEBUG
 void HWUART_Init(void);
 void HWUART_Printf(const char* format, ...);
