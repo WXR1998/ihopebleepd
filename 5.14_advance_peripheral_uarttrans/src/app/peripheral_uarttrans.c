@@ -114,7 +114,7 @@
 #define DEFAULT_CONN_PAUSE_PERIPHERAL         6
 
 // Build identity, reported via Device Information Service (0x180A).
-#define ETAG_FW_VERSION                       "eTag-M3N-1.12"
+#define ETAG_FW_VERSION                       "eTag-M3N-1.13"
 
 // __DATE__ "Mmm dd yyyy" + __TIME__ "hh:mm:ss" -> "yyyy-mm-dd hh:mm:ss"
 // (19 chars, fits DEVINFO_STR_ATTR_LEN)
@@ -1148,6 +1148,13 @@ static void SPPBLEServer_processStateChangeEvt(gaprole_States_t newState)
         GAP_SetParamValue(TGAP_LIM_DISC_ADV_INT_MAX, fastAdvInt);
         Util_startClock(&advPhaseClock);
         etagWasConnected = FALSE;
+        // role 的断连自动重启可能已用旧慢参数开了广播（参数只在启动时
+        // 读取，app 侧改参数晚一拍）——强制停→延迟重启，让新快参数生效。
+        {
+          uint8_t advEnable = FALSE;
+          GAPRole_SetParameter(GAPROLE_ADVERT_ENABLED, sizeof(uint8_t), &advEnable);
+          Util_startClock(&advRestartClock);
+        }
       }
       break;
 
