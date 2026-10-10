@@ -570,6 +570,59 @@ void EPD_Display() {
   EPD_2IN13_Sleep();
 }
 
+/*
+ * 原厂初始化序列实验：从 original_backup.bin ARM Thumb 反汇编得到的
+ * EPD 命令顺序。它不替换 OTP 默认路径，只由 mode=EPD_MODE_FACTORY 选择。
+ * 温度分支固定采用原厂常见的 0x22=B1 路径；实机结果用于验证
+ * 0x2B/0x3D/0x3E/0x3F 与 A1→B1 两阶段是否影响锐度。
+ */
+static void EPD_2IN13_Init_FactorySequence(void)
+{
+  DEV_Digital_Write(EPD_POWER_PIN, 0);
+  DEV_Digital_Write(BLUE_LED_PIN, 0);
+  DEV_Delay_ms(100);
+  EPD_2IN13_Reset();
+  EPD_2IN13_ReadBusy();
+
+  EPD_2IN13_SendCommand(0x74); EPD_2IN13_SendData(0x54);
+  EPD_2IN13_SendCommand(0x7E); EPD_2IN13_SendData(0x3B);
+
+  // 原厂反汇编 @0xEB7A：0x2B + 04 63 0C 8B 9C 96 0F
+  EPD_2IN13_SendCommand(0x2B);
+  EPD_2IN13_SendData(0x04); EPD_2IN13_SendData(0x63);
+  EPD_2IN13_SendData(0x0C); EPD_2IN13_SendData(0x8B);
+  EPD_2IN13_SendData(0x9C); EPD_2IN13_SendData(0x96);
+  EPD_2IN13_SendData(0x0F);
+
+  EPD_2IN13_SendCommand(0x01);
+  EPD_2IN13_SendData(0xD3); EPD_2IN13_SendData(0x00); EPD_2IN13_SendData(0x00);
+  EPD_2IN13_SendCommand(0x11); EPD_2IN13_SendData(0x01);
+  EPD_2IN13_SendCommand(0x18); EPD_2IN13_SendData(0x80);
+
+  EPD_2IN13_SendCommand(0x44);
+  EPD_2IN13_SendData(0x00); EPD_2IN13_SendData(0x0C);
+  EPD_2IN13_SendCommand(0x45);
+  EPD_2IN13_SendData(0xD3); EPD_2IN13_SendData(0x00);
+  EPD_2IN13_SendData(0x00); EPD_2IN13_SendData(0x00);
+  EPD_2IN13_SendCommand(0x3C); EPD_2IN13_SendData(0x01);
+
+  // 原厂第一阶段：0x22=A1 → 0x20
+  EPD_2IN13_SendCommand(0x22); EPD_2IN13_SendData(0xA1);
+  EPD_2IN13_SendCommand(0x20); EPD_2IN13_ReadBusy();
+
+  // 原厂温度/时序参数：反汇编中的 0x3D/0x3E/0x3F
+  EPD_2IN13_SendCommand(0x3D); EPD_2IN13_SendData(0x09); EPD_2IN13_SendData(0x09);
+  EPD_2IN13_SendCommand(0x3E);
+  EPD_2IN13_SendData(0x01); EPD_2IN13_SendData(0x11); EPD_2IN13_SendData(0x0C);
+  EPD_2IN13_SendCommand(0x3F); EPD_2IN13_SendData(0x07);
+
+  // 原厂常见温度分支的 B1 路径
+  EPD_2IN13_SendCommand(0x22); EPD_2IN13_SendData(0xB1);
+  EPD_2IN13_SendCommand(0x20); EPD_2IN13_ReadBusy();
+  EPD_2IN13_SendCommand(0x21); EPD_2IN13_SendData(0x03);
+  DEV_Delay_ms(100);
+}
+
 void EPD_Init_With_Mode(uint8_t mode) {
   epd_display_mode = mode;
   switch(mode) {
@@ -595,6 +648,9 @@ void EPD_Init_With_Mode(uint8_t mode) {
       // 褪色实验 B：灰度 LUT + 同帧 RAM 三叠刷（EPD_Display 放行 3 次激活）。
       // 流程约束：网页须先 01FF 清白（灰度 LUT 无「黑→白」相）。
       EPD_2IN13_Init_With_LUT(EPD_2IN13_lut_gray_update);
+      break;
+    case EPD_MODE_FACTORY:
+      EPD_2IN13_Init_FactorySequence();
       break;
     default:
       HwUARTPrintf("unknown Update mode\n");

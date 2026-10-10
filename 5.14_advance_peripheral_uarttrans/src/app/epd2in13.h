@@ -36,8 +36,9 @@ enum {
     EPD_MODE_BWR = 0x2,
     EPD_MODE_GRAY = 0x3,
     EPD_MODE_BW3 = 0x4,   /* BW·三刷：灰度 LUT 单帧三叠刷（褪色实验 B） */
+    EPD_MODE_FACTORY = 0x5, /* 原厂初始化序列实验（反汇编对照，非默认） */
 
-    EPD_MODE_END = 0x5,
+    EPD_MODE_END = 0x6,
 };
 // #define EPD_2IN13_FULL			0
 // #define EPD_2IN13_PART			1
