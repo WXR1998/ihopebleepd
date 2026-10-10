@@ -9,6 +9,9 @@ uint8_t epd_spi_error = 0;
 // 睡眠收尾模式（见 epd2in13.h 枚举；默认 = 历史行为，褪色实验用）
 uint8_t epd_sleep_mode = EPD_SLEEP_DEFAULT;
 
+// 当前显示模式（EPD_Display 据此决定 BW·三刷的激活次数）
+uint8_t epd_display_mode = EPD_MODE_BW;
+
 static void epd_spi_ensure_open(void);
 
 
@@ -558,11 +561,16 @@ void EPD_Clear(uint8_t tofill) {
 }
 
 void EPD_Display() {
-  EPD_2IN13_UpdateDisplay();
+  // BW·三刷：同一帧 RAM 连续激活 3 次（第 2/3 次走 BB 类再驱动，等效灰度三叠刷）
+  uint8_t passes = (epd_display_mode == EPD_MODE_BW3) ? 3 : 1;
+  for (uint8_t i = 0; i < passes; i++) {
+    EPD_2IN13_UpdateDisplay();
+  }
   EPD_2IN13_Sleep();
 }
 
 void EPD_Init_With_Mode(uint8_t mode) {
+  epd_display_mode = mode;
   switch(mode) {
     case EPD_MODE_BW:
       // 2026-10-10 实测（1.17-diag 检测图）：自定义 lut_bw_update 在 DEPG0213RH
@@ -580,6 +588,11 @@ void EPD_Init_With_Mode(uint8_t mode) {
       EPD_2IN13_Init_With_LUT(NULL);
       break;
     case EPD_MODE_GRAY:
+      EPD_2IN13_Init_With_LUT(EPD_2IN13_lut_gray_update);
+      break;
+    case EPD_MODE_BW3:
+      // 褪色实验 B：灰度 LUT + 同帧 RAM 三叠刷（EPD_Display 放行 3 次激活）。
+      // 流程约束：网页须先 01FF 清白（灰度 LUT 无「黑→白」相）。
       EPD_2IN13_Init_With_LUT(EPD_2IN13_lut_gray_update);
       break;
     default:
