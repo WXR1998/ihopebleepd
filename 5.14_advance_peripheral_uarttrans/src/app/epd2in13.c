@@ -587,12 +587,12 @@ static void EPD_2IN13_Init_FactorySequence(void)
   EPD_2IN13_SendCommand(0x74); EPD_2IN13_SendData(0x54);
   EPD_2IN13_SendCommand(0x7E); EPD_2IN13_SendData(0x3B);
 
-  // 原厂反汇编 @0xEB7A：0x2B + 04 63 0C 8B 9C 96 0F
+  // 原厂反汇编 @0xEB7A：0x2B + 04 63；随后 0x0C + 8B 9C 96 0F
   EPD_2IN13_SendCommand(0x2B);
   EPD_2IN13_SendData(0x04); EPD_2IN13_SendData(0x63);
-  EPD_2IN13_SendData(0x0C); EPD_2IN13_SendData(0x8B);
-  EPD_2IN13_SendData(0x9C); EPD_2IN13_SendData(0x96);
-  EPD_2IN13_SendData(0x0F);
+  EPD_2IN13_SendCommand(0x0C);
+  EPD_2IN13_SendData(0x8B); EPD_2IN13_SendData(0x9C);
+  EPD_2IN13_SendData(0x96); EPD_2IN13_SendData(0x0F);
 
   EPD_2IN13_SendCommand(0x01);
   EPD_2IN13_SendData(0xD3); EPD_2IN13_SendData(0x00); EPD_2IN13_SendData(0x00);
@@ -651,6 +651,11 @@ void EPD_Init_With_Mode(uint8_t mode) {
       break;
     case EPD_MODE_FACTORY:
       EPD_2IN13_Init_FactorySequence();
+      // 原厂实验当前网页只写 BW RAM；清除红色 RAM，避免上一次红层/随机 RAM 污染画面。
+      EPD_2IN13_PrepareRedRAM();
+      for (uint16_t i = 0; i < EPD_Buffer_Size; i++) {
+        EPD_2IN13_SendData(0x00);
+      }
       break;
     default:
       HwUARTPrintf("unknown Update mode\n");
