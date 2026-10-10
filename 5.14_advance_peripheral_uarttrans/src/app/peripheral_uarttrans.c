@@ -170,6 +170,15 @@ static void SPPBLEServer_formatBuildStamp(void)
 // the scan-response AD structure and applies the same value to GATT.
 static const uint8_t bleNameConfig[BLE_NAME_MAX_LEN] = "ETAG-DEFAULT-0000000";
 
+// Flash-time BD address slot: 10-byte ASCII marker + 6 address bytes in
+// HCI_EXT_SetBDADDRCmd order (little endian). tools/patch_ble_name.py derives
+// a stable per-name static-random address; without it every board ships with
+// the same hard-coded address and multiple tags collide on air.
+static const uint8_t bdAddrConfig[16] = {
+    'E', 'T', 'A', 'G', 'B', 'D', 'A', 'D', 'D', 'R',
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05
+};
+
 // How often to perform periodic event (in msec)
 #define SBP_PERIODIC_EVT_PERIOD               5000
 
@@ -475,9 +484,10 @@ static void SPPBLEServer_init(void)
   RCOSC_enableCalibration();
   #endif // USE_RCOSC
 
-  // Hard code the BD Address till CC2650 board gets its own IEEE address
-  uint8 bdAddress[B_ADDR_LEN] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05 };
-  //uint8 bdAddress[B_ADDR_LEN] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06 };
+  // BD address comes from the flash-time patch slot above; the placeholder
+  // keeps the legacy hard-coded value for unpatched builds.
+  uint8 bdAddress[B_ADDR_LEN];
+  memcpy(bdAddress, &bdAddrConfig[10], B_ADDR_LEN);
   HCI_EXT_SetBDADDRCmd(bdAddress);
 
   // Create an RTOS queue for message from profile to be sent to app.
