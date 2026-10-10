@@ -358,10 +358,11 @@ void EPD_2IN13_Init_With_LUT(const unsigned char* lut)
   EPD_2IN13_SendCommand(0x3C); //BorderWavefrom
   EPD_2IN13_SendData(0x03);
   
-  EPD_2IN13_SendCommand(0x2C); //set vcom value
-  EPD_2IN13_SendData(0x55);
-
+  // OTP 路径不手工覆盖 VCOM；上游原始 OTP 初始化直接从 0x18/0x22/0x20 加载。
+  // 自定义 LUT 路径仍使用参考驱动的 VCOM=0x55。
   if(lut) {
+    EPD_2IN13_SendCommand(0x2C); //set vcom value
+    EPD_2IN13_SendData(0x55);
     EPD_2IN13_SendCommand(0x03);
     EPD_2IN13_SendData(lut[70]);
 
