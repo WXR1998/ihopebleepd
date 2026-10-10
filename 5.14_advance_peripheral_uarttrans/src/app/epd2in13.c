@@ -356,10 +356,10 @@ void EPD_2IN13_Init_With_LUT(const unsigned char* lut)
   EPD_2IN13_SendData(0x00);
 
   EPD_2IN13_SendCommand(0x3C); //BorderWavefrom
-  EPD_2IN13_SendData(0x01);
+  EPD_2IN13_SendData(0x03);
   
   EPD_2IN13_SendCommand(0x2C); //set vcom value
-  EPD_2IN13_SendData(0x5A);
+  EPD_2IN13_SendData(0x55);
 
   if(lut) {
     EPD_2IN13_SendCommand(0x03);
