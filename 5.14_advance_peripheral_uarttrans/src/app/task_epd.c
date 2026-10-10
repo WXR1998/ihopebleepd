@@ -61,6 +61,7 @@ enum {
   EPD_CMD_PREPARE_RED = 0x5,
   EPD_CMD_SHUTDOWN = 0x6,
   EPD_CMD_RESET = 0x7,
+  EPD_CMD_SLEEP_CFG = 0x8,
 };
  
  
@@ -260,6 +261,16 @@ void handle_cmd()
       // 不回 ACK——复位后链路即刻消失，网页以断开事件为确认
       HWUART_Printf("RST: system reset (NRST-equivalent)\r\n");
       SysCtrlSystemReset();
+      break;
+    case EPD_CMD_SLEEP_CFG:
+      // 褪色实验：0x08 + mode（0=默认 1=C3+等BUSY 2=跳过C3 3=不休眠）
+      ASSERT_MIN_LEN(rx_fram_len, 2);
+      if (epd_rx_frame[1] > EPD_SLEEP_NONE) {
+        epd_resp_frame[1] = 0xff;
+        break;
+      }
+      epd_sleep_mode = epd_rx_frame[1];
+      HWUART_Printf("[EPD] sleep mode=%d\r\n", epd_sleep_mode);
       break;
     default:
       HWUART_Printf("unknown cmd\r\n");

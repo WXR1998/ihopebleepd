@@ -21,6 +21,14 @@ static const uint16_t EPD_Buffer_Width = EPD_2IN13_BUFFER_WIDTH;
 static const uint16_t EPD_Buffer_Height = EPD_2IN13_BUFFER_HEIGHT; 
 static const uint16_t EPD_Buffer_Size = EPD_2IN13_BUFFER_SIZE; 
 
+// 睡眠收尾模式（褪色实验，BLE 0x08 切换；复位/重新上电回到 EPD_SLEEP_DEFAULT）
+enum {
+    EPD_SLEEP_DEFAULT = 0x0,   /* C3 收尾后不等待 BUSY（历史行为，基线） */
+    EPD_SLEEP_WAIT_BUSY = 0x1, /* C3 收尾后等待 BUSY 再深睡断电（实验 A） */
+    EPD_SLEEP_SKIP_C3 = 0x2,   /* 跳过 C3 收尾直接深睡断电（实验 C，诊断） */
+    EPD_SLEEP_NONE = 0x3,      /* 完全不休眠，面板持续供电（诊断，LED 常亮） */
+};
+
 enum {
     EPD_MODE_BEGIN = 0x0,
 
@@ -32,6 +40,8 @@ enum {
 };
 // #define EPD_2IN13_FULL			0
 // #define EPD_2IN13_PART			1
+
+extern uint8_t epd_sleep_mode;
 
 void epd_hw_init();
 

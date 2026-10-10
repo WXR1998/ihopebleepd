@@ -6,6 +6,9 @@
 // to propagate errors to the web response. 0 = no error.
 uint8_t epd_spi_error = 0;
 
+// 睡眠收尾模式（见 epd2in13.h 枚举；默认 = 历史行为，褪色实验用）
+uint8_t epd_sleep_mode = EPD_SLEEP_DEFAULT;
+
 static void epd_spi_ensure_open(void);
 
 
@@ -485,9 +488,38 @@ parameter:
 ******************************************************************************/
 void EPD_2IN13_Sleep(void)
 {
+    if (epd_sleep_mode == EPD_SLEEP_NONE) {
+        // 诊断：完全不休眠，面板持续供电（LED 常亮提示），只关 SPI 便于下轮重开
+        if (SPIHandle) {
+            SPI_close(SPIHandle);
+            SPIHandle = NULL;
+        }
+        return;
+    }
+    if (epd_sleep_mode == EPD_SLEEP_SKIP_C3) {
+        // 实验 C：跳过 C3 收尾，直接深睡断电（验证 C3 是否引起褪色）
+        EPD_2IN13_SendCommand(0x10); //enter deep sleep
+        EPD_2IN13_SendData(0x01);
+        DEV_Delay_ms(100);
+
+        DEV_Digital_Write(EPD_POWER_PIN, 1);
+        DEV_Digital_Write(BLUE_LED_PIN, 1);
+        DEV_Delay_ms(100);
+
+        if (SPIHandle) {
+            SPI_close(SPIHandle);
+            SPIHandle = NULL;
+        }
+        return;
+    }
     EPD_2IN13_SendCommand(0x22); //POWER OFF
     EPD_2IN13_SendData(0xC3);
     EPD_2IN13_SendCommand(0x20);
+
+    if (epd_sleep_mode == EPD_SLEEP_WAIT_BUSY) {
+        // 实验 A：等电源收尾序列真正结束再深睡断电
+        EPD_2IN13_ReadBusy();
+    }
 
     EPD_2IN13_SendCommand(0x10); //enter deep sleep
     EPD_2IN13_SendData(0x01);
