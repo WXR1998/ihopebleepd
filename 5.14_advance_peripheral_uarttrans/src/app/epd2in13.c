@@ -565,7 +565,16 @@ void EPD_Display() {
 void EPD_Init_With_Mode(uint8_t mode) {
   switch(mode) {
     case EPD_MODE_BW:
-      EPD_2IN13_Init_With_LUT(EPD_2IN13_lut_bw_update);
+      // 2026-10-10 实测（1.17-diag 检测图）：自定义 lut_bw_update 在 DEPG0213RH
+      // 三色屏上驱动力严重不足（含 16x16 大块在内全图极淡，波形驱动仅 ~3s，
+      // OTP 全程 ~10-15s）。BW 改用出厂 OTP 波形；红色 RAM 填 0
+      // （本板红色数据反相：1=红），纯黑白内容时 OTP 红相位无可见变化。
+      // 自定义 LUT 保留在源码中，作为后续 LUT 调参实验的起点。
+      EPD_2IN13_Init_With_LUT(NULL);
+      EPD_2IN13_PrepareRedRAM();
+      for (uint16_t i = 0; i < EPD_Buffer_Size; i++) {
+        EPD_2IN13_SendData(0x00);
+      }
       break;
     case EPD_MODE_BWR:
       EPD_2IN13_Init_With_LUT(NULL);
