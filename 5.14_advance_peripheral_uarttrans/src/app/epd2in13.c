@@ -576,7 +576,7 @@ void EPD_Display() {
  * 温度分支固定采用原厂常见的 0x22=B1 路径；实机结果用于验证
  * 0x2B/0x3D/0x3E/0x3F 与 A1→B1 两阶段是否影响锐度。
  */
-static void EPD_2IN13_Init_FactorySequence(void)
+static void EPD_2IN13_Init_FactorySequence(uint8_t temp91)
 {
   DEV_Digital_Write(EPD_POWER_PIN, 0);
   DEV_Digital_Write(BLUE_LED_PIN, 0);
@@ -616,8 +616,15 @@ static void EPD_2IN13_Init_FactorySequence(void)
   EPD_2IN13_SendData(0x01); EPD_2IN13_SendData(0x11); EPD_2IN13_SendData(0x0C);
   EPD_2IN13_SendCommand(0x3F); EPD_2IN13_SendData(0x07);
 
-  // 原厂常见温度分支的 B1 路径
-  EPD_2IN13_SendCommand(0x22); EPD_2IN13_SendData(0xB1);
+  if (temp91) {
+    // 原厂另一分支：0x1B 温度读取后写 0x1A=55 + 温度值，再 0x22=91。
+    // 当前硬件未接入原厂 bit-bang 温度读取，固定 25℃仅用于隔离波形分支影响。
+    EPD_2IN13_SendCommand(0x1B);
+    EPD_2IN13_SendCommand(0x1A); EPD_2IN13_SendData(0x55); EPD_2IN13_SendData(25);
+    EPD_2IN13_SendCommand(0x22); EPD_2IN13_SendData(0x91);
+  } else {
+    EPD_2IN13_SendCommand(0x22); EPD_2IN13_SendData(0xB1);
+  }
   EPD_2IN13_SendCommand(0x20); EPD_2IN13_ReadBusy();
   EPD_2IN13_SendCommand(0x21); EPD_2IN13_SendData(0x03);
   DEV_Delay_ms(100);
@@ -650,7 +657,8 @@ void EPD_Init_With_Mode(uint8_t mode) {
       EPD_2IN13_Init_With_LUT(EPD_2IN13_lut_gray_update);
       break;
     case EPD_MODE_FACTORY:
-      EPD_2IN13_Init_FactorySequence();
+    case EPD_MODE_FACTORY_TEMP91:
+      EPD_2IN13_Init_FactorySequence(mode == EPD_MODE_FACTORY_TEMP91);
       // 原厂实验当前网页只写 BW RAM；清除红色 RAM，避免上一次红层/随机 RAM 污染画面。
       EPD_2IN13_PrepareRedRAM();
       for (uint16_t i = 0; i < EPD_Buffer_Size; i++) {

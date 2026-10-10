@@ -114,7 +114,7 @@
 #define DEFAULT_CONN_PAUSE_PERIPHERAL         6
 
 // Build identity, reported via Device Information Service (0x180A).
-#define ETAG_FW_VERSION                       "eTag-M3N-1.24-diag"
+#define ETAG_FW_VERSION                       "eTag-M3N-1.25-diag"
 
 // __DATE__ "Mmm dd yyyy" + __TIME__ "hh:mm:ss" -> "yyyy-mm-dd hh:mm:ss"
 // (19 chars, fits DEVINFO_STR_ATTR_LEN)
