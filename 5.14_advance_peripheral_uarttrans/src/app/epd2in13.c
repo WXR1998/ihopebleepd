@@ -13,6 +13,7 @@ uint8_t epd_sleep_mode = EPD_SLEEP_DEFAULT;
 uint8_t epd_display_mode = EPD_MODE_BW;
 uint8_t epd_last_temperature = 0xFF;
 uint8_t epd_last_status = 0xFF;
+static uint8_t epd_panel_powered = 0;
 
 static void epd_spi_ensure_open(void);
 
