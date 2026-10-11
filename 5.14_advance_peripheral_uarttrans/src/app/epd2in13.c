@@ -780,9 +780,11 @@ void EPD_Init_With_Mode(uint8_t mode) {
     case EPD_MODE_FACTORY_TEMP91:
     case EPD_MODE_FACTORY_TEMP_READ91:
     case EPD_MODE_FACTORY_TEMP_READ91_X2:
+    case EPD_MODE_FACTORY_TEMP_READ91_PARTIAL:
       EPD_2IN13_Init_FactorySequence(mode == EPD_MODE_FACTORY_TEMP91 ? 1 :
                                      ((mode == EPD_MODE_FACTORY_TEMP_READ91 ||
-                                       mode == EPD_MODE_FACTORY_TEMP_READ91_X2) ? 2 : 0));
+                                       mode == EPD_MODE_FACTORY_TEMP_READ91_X2 ||
+                                       mode == EPD_MODE_FACTORY_TEMP_READ91_PARTIAL) ? 2 : 0));
       // 原厂实验当前网页只写 BW RAM；清除红色 RAM，避免上一次红层/随机 RAM 污染画面。
       EPD_2IN13_PrepareRedRAM();
       for (uint16_t i = 0; i < EPD_Buffer_Size; i++) {
@@ -791,6 +793,9 @@ void EPD_Init_With_Mode(uint8_t mode) {
       break;
     default:
       HwUARTPrintf("unknown Update mode\n");
+      // 初始化未执行（面板未上电）：置错误位让 INIT ACK 立刻失败，
+      // 防止网页继续往未上电面板写数据后 BUSY 恒高白等 20s（0x09 漏 case 的真实教训）
+      epd_spi_error = 0xff;
       return;
   }
 }
