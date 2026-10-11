@@ -235,6 +235,12 @@ void handle_cmd()
       }
       EPD_Init_With_Mode(epd_rx_frame[1]);
       epd_initialized = true;
+      if (epd_rx_frame[1] == EPD_MODE_FACTORY_TEMP_READ91 ||
+          epd_rx_frame[1] == EPD_MODE_FACTORY_TEMP_READ91_X2) {
+        resp_fram_len = 4;
+        epd_resp_frame[2] = epd_last_temperature;
+        epd_resp_frame[3] = epd_last_status;
+      }
       break;
     case EPD_CMD_CLEAR:
       ASSERT_MIN_LEN(rx_fram_len, 2);

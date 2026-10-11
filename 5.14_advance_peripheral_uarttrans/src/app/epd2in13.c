@@ -11,6 +11,8 @@ uint8_t epd_sleep_mode = EPD_SLEEP_DEFAULT;
 
 // 当前显示模式（EPD_Display 据此决定 BW·三刷的激活次数）
 uint8_t epd_display_mode = EPD_MODE_BW;
+uint8_t epd_last_temperature = 0xFF;
+uint8_t epd_last_status = 0xFF;
 
 static void epd_spi_ensure_open(void);
 
@@ -183,6 +185,9 @@ static void DEV_SPI_WriteByte(uint8_t byte)
 static uint8_t EPD_2IN13_ReadSharedByte(void)
 {
   uint8_t value = 0;
+  uint8_t second = 0;
+  epd_last_temperature = 0xFF;
+  epd_last_status = 0xFF;
   if (SPIHandle) { SPI_close(SPIHandle); SPIHandle = NULL; }
   if (PIN_add(GPIOHandle, EPD_BB_CLK_PIN | PIN_INPUT_EN | PIN_PULLDOWN) != PIN_SUCCESS ||
       PIN_add(GPIOHandle, EPD_BB_DATA_PIN | PIN_INPUT_EN | PIN_PULLDOWN) != PIN_SUCCESS) {
@@ -201,7 +206,6 @@ static uint8_t EPD_2IN13_ReadSharedByte(void)
   DEV_Digital_Write(EPD_BB_CLK_PIN, 0);
   // ed00 读第一字节（温度）；ed50 在同一 CS 周期再读第二字节并收尾。
   for (uint8_t byte = 0; byte < 2; byte++) {
-    uint8_t second = 0;
     for (uint8_t bit = 0; bit < 8; bit++) {
       uint8_t sample = PIN_getInputValue(EPD_BB_DATA_PIN) ? 1 : 0;
       if (byte == 0) value = (uint8_t)((value << 1) | sample);
@@ -216,6 +220,8 @@ static uint8_t EPD_2IN13_ReadSharedByte(void)
   PIN_remove(GPIOHandle, EPD_BB_CLK_PIN);
   PIN_remove(GPIOHandle, EPD_BB_DATA_PIN);
   epd_spi_ensure_open();
+  epd_last_temperature = value;
+  epd_last_status = second;
   return value;
 }
 
@@ -605,7 +611,8 @@ void EPD_Clear(uint8_t tofill) {
 
 void EPD_Display() {
   // BW·三刷：同一帧 RAM 连续激活 3 次（第 2/3 次走 BB 类再驱动，等效灰度三叠刷）
-  uint8_t passes = (epd_display_mode == EPD_MODE_BW3) ? 3 : 1;
+  uint8_t passes = (epd_display_mode == EPD_MODE_BW3) ? 3 :
+                   (epd_display_mode == EPD_MODE_FACTORY_TEMP_READ91_X2 ? 2 : 1);
   for (uint8_t i = 0; i < passes; i++) {
     EPD_2IN13_UpdateDisplay();
   }
@@ -716,8 +723,10 @@ void EPD_Init_With_Mode(uint8_t mode) {
     case EPD_MODE_FACTORY:
     case EPD_MODE_FACTORY_TEMP91:
     case EPD_MODE_FACTORY_TEMP_READ91:
+    case EPD_MODE_FACTORY_TEMP_READ91_X2:
       EPD_2IN13_Init_FactorySequence(mode == EPD_MODE_FACTORY_TEMP91 ? 1 :
-                                     (mode == EPD_MODE_FACTORY_TEMP_READ91 ? 2 : 0));
+                                     ((mode == EPD_MODE_FACTORY_TEMP_READ91 ||
+                                       mode == EPD_MODE_FACTORY_TEMP_READ91_X2) ? 2 : 0));
       // 原厂实验当前网页只写 BW RAM；清除红色 RAM，避免上一次红层/随机 RAM 污染画面。
       EPD_2IN13_PrepareRedRAM();
       for (uint16_t i = 0; i < EPD_Buffer_Size; i++) {
