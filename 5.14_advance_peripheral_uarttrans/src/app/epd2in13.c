@@ -107,6 +107,23 @@ const unsigned char EPD_2IN13_lut_bw_update[]= {
     0x15,0x41,0xA8,0x32,0x30,0x0A,
 };
 
+/* 同类 2.13 控制器局部更新 LUT；仅由 91→partial 诊断模式使用。 */
+const unsigned char EPD_2IN13_lut_partial_update[] = {
+  0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+  0x80,0x00,0x00,0x00,0x00,0x00,0x00,
+  0x40,0x00,0x00,0x00,0x00,0x00,0x00,
+  0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+  0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+  0x0A,0x00,0x00,0x00,0x00,
+  0x00,0x00,0x00,0x00,0x00,
+  0x00,0x00,0x00,0x00,0x00,
+  0x00,0x00,0x00,0x00,0x00,
+  0x00,0x00,0x00,0x00,0x00,
+  0x00,0x00,0x00,0x00,0x00,
+  0x00,0x00,0x00,0x00,0x00,
+  0x15,0x41,0xA8,0x32,0x30,0x0A,
+};
+
 // quick and dirty way
 // Task_sleep defined in <ti/sysbios/knl/Task.h>
 static void Util_delay_ms(uint16_t t)
@@ -523,6 +540,28 @@ void EPD_2IN13_WriteRAM(const uint8_t *buf, const int len)
     }
 }
 
+static void EPD_2IN13_PreparePartialUpdate(void)
+{
+  EPD_2IN13_SendCommand(0x2C); EPD_2IN13_SendData(0x26);
+  EPD_2IN13_ReadBusy();
+  EPD_2IN13_SendCommand(0x32);
+  for (uint8_t i = 0; i < 70; i++) EPD_2IN13_SendData(EPD_2IN13_lut_partial_update[i]);
+  EPD_2IN13_SendCommand(0x37);
+  EPD_2IN13_SendData(0x00); EPD_2IN13_SendData(0x00); EPD_2IN13_SendData(0x00);
+  EPD_2IN13_SendData(0x00); EPD_2IN13_SendData(0x40); EPD_2IN13_SendData(0x00);
+  EPD_2IN13_SendData(0x00);
+  EPD_2IN13_SendCommand(0x22); EPD_2IN13_SendData(0xC0);
+  EPD_2IN13_SendCommand(0x20); EPD_2IN13_ReadBusy();
+  EPD_2IN13_SendCommand(0x3C); EPD_2IN13_SendData(0x01);
+}
+
+static void EPD_2IN13_UpdateDisplayPartial(void)
+{
+  EPD_2IN13_SendCommand(0x22); EPD_2IN13_SendData(0x0C);
+  EPD_2IN13_SendCommand(0x20); EPD_2IN13_ReadBusy();
+  DEV_Delay_ms(200);
+}
+
 void EPD_2IN13_UpdateDisplay(void)
 {
      HwUARTPrintf("turn on display\r\n");
@@ -612,9 +651,15 @@ void EPD_Clear(uint8_t tofill) {
 void EPD_Display() {
   // BW·三刷：同一帧 RAM 连续激活 3 次（第 2/3 次走 BB 类再驱动，等效灰度三叠刷）
   uint8_t passes = (epd_display_mode == EPD_MODE_BW3) ? 3 :
-                   (epd_display_mode == EPD_MODE_FACTORY_TEMP_READ91_X2 ? 2 : 1);
+                   ((epd_display_mode == EPD_MODE_FACTORY_TEMP_READ91_X2 ||
+                     epd_display_mode == EPD_MODE_FACTORY_TEMP_READ91_PARTIAL) ? 2 : 1);
   for (uint8_t i = 0; i < passes; i++) {
-    EPD_2IN13_UpdateDisplay();
+    if (epd_display_mode == EPD_MODE_FACTORY_TEMP_READ91_PARTIAL && i == 1) {
+      EPD_2IN13_PreparePartialUpdate();
+      EPD_2IN13_UpdateDisplayPartial();
+    } else {
+      EPD_2IN13_UpdateDisplay();
+    }
   }
   EPD_2IN13_Sleep();
 }
