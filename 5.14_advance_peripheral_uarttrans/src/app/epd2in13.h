@@ -40,8 +40,9 @@ enum {
     EPD_MODE_FACTORY_TEMP91 = 0x6, /* 历史固定 25℃分支（仅复现） */
     EPD_MODE_FACTORY_TEMP_READ91 = 0x7, /* 原厂共享数据线读回温度，单刷 */
     EPD_MODE_FACTORY_TEMP_READ91_X2 = 0x8, /* 同一 0x91 帧连续激活两次 */
+    EPD_MODE_FACTORY_TEMP_READ91_PARTIAL = 0x9, /* C7 后使用 0x0C 局部续刷 */
 
-    EPD_MODE_END = 0x9,
+    EPD_MODE_END = 0xA,
 };
 // #define EPD_2IN13_FULL			0
 // #define EPD_2IN13_PART			1
