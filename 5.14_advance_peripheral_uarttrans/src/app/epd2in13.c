@@ -356,11 +356,9 @@ void EPD_2IN13_ReadBusy(void)
     int busy_wait = 0;
     HwUARTPrintf("e-Paper busy\r\n");
 
-    // 供电状态由 EPD_SetPower 唯一维护；GPIO 电气回读不作为状态源。
+    // 供电逻辑状态仅作诊断提示，不在此处短路；最终以 BUSY 超时（0xF1）判定刷新失败。
     if (!epd_panel_powered) {
-        HwUARTPrintf("e-Paper busy: PANEL POWER OFF!\r\n");
-        epd_spi_error = 0xf2;
-        return;
+        HwUARTPrintf("e-Paper busy: power state unknown; probing BUSY\r\n");
     }
 
     while(DEV_Digital_Read(EPD_BUSY_PIN) == 1) {      //LOW: idle, HIGH: busy
