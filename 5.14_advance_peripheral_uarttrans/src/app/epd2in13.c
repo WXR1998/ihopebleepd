@@ -199,10 +199,16 @@ static uint8_t EPD_2IN13_ReadSharedByte(void)
   DEV_Digital_Write(EPD_CS_PIN, 0);
   DEV_Digital_Write(EPD_DC_PIN, 1);
   DEV_Digital_Write(EPD_BB_CLK_PIN, 0);
-  for (uint8_t bit = 0; bit < 8; bit++) {
-    value = (uint8_t)((value << 1) | (PIN_getInputValue(EPD_BB_DATA_PIN) ? 1 : 0));
-    DEV_Digital_Write(EPD_BB_CLK_PIN, 1);
-    DEV_Digital_Write(EPD_BB_CLK_PIN, 0);
+  // ed00 读第一字节（温度）；ed50 在同一 CS 周期再读第二字节并收尾。
+  for (uint8_t byte = 0; byte < 2; byte++) {
+    uint8_t second = 0;
+    for (uint8_t bit = 0; bit < 8; bit++) {
+      uint8_t sample = PIN_getInputValue(EPD_BB_DATA_PIN) ? 1 : 0;
+      if (byte == 0) value = (uint8_t)((value << 1) | sample);
+      else second = (uint8_t)((second << 1) | sample);
+      DEV_Digital_Write(EPD_BB_CLK_PIN, 1);
+      DEV_Digital_Write(EPD_BB_CLK_PIN, 0);
+    }
   }
   DEV_Digital_Write(EPD_CS_PIN, 1);
   PIN_setConfig(GPIOHandle, PIN_BM_ALL, EPD_BB_CLK_PIN | PIN_INPUT_EN | PIN_PULLDOWN);
