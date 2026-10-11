@@ -40,6 +40,8 @@ static void epd_spi_ensure_open(void);
 #define EPD_DC_PIN              IOID_11
 #define EPD_BUSY_PIN            IOID_9
 #define EPD_CS_PIN              IOID_12
+#define EPD_BB_CLK_PIN          IOID_18
+#define EPD_BB_DATA_PIN         IOID_19
 
 
 
@@ -176,6 +178,30 @@ static void DEV_SPI_WriteByte(uint8_t byte)
 //   return rxbuf[0];
 //   
 // }
+
+/* 原厂 ed00/ed50 的最小读回等价路径；仅由读回诊断模式调用。 */
+static uint8_t EPD_2IN13_ReadSharedByte(void)
+{
+  uint8_t value = 0;
+  if (SPIHandle) { SPI_close(SPIHandle); SPIHandle = NULL; }
+  PIN_setConfig(GPIOHandle, PIN_BM_ALL,
+                EPD_BB_CLK_PIN | PIN_GPIO_OUTPUT_EN | PIN_PUSHPULL | PIN_GPIO_LOW);
+  PIN_setConfig(GPIOHandle, PIN_BM_ALL,
+                EPD_BB_DATA_PIN | PIN_INPUT_EN | PIN_PULLDOWN);
+  DEV_Digital_Write(EPD_CS_PIN, 0);
+  DEV_Digital_Write(EPD_DC_PIN, 1);
+  DEV_Digital_Write(EPD_BB_CLK_PIN, 0);
+  for (uint8_t bit = 0; bit < 8; bit++) {
+    value = (uint8_t)((value << 1) | (PIN_getInputValue(EPD_BB_DATA_PIN) ? 1 : 0));
+    DEV_Digital_Write(EPD_BB_CLK_PIN, 1);
+    DEV_Digital_Write(EPD_BB_CLK_PIN, 0);
+  }
+  DEV_Digital_Write(EPD_CS_PIN, 1);
+  PIN_setConfig(GPIOHandle, PIN_BM_ALL, EPD_BB_CLK_PIN | PIN_INPUT_EN | PIN_PULLDOWN);
+  PIN_setConfig(GPIOHandle, PIN_BM_ALL, EPD_BB_DATA_PIN | PIN_INPUT_EN | PIN_PULLDOWN);
+  epd_spi_ensure_open();
+  return value;
+}
 
 // should be only called once!
 void epd_hw_init()
@@ -576,7 +602,7 @@ void EPD_Display() {
  * 温度分支固定采用原厂常见的 0x22=B1 路径；实机结果用于验证
  * 0x2B/0x3D/0x3E/0x3F 与 A1→B1 两阶段是否影响锐度。
  */
-static void EPD_2IN13_Init_FactorySequence(uint8_t temp91)
+static void EPD_2IN13_Init_FactorySequence(uint8_t tempMode)
 {
   DEV_Digital_Write(EPD_POWER_PIN, 0);
   DEV_Digital_Write(BLUE_LED_PIN, 0);
@@ -616,12 +642,21 @@ static void EPD_2IN13_Init_FactorySequence(uint8_t temp91)
   EPD_2IN13_SendData(0x01); EPD_2IN13_SendData(0x11); EPD_2IN13_SendData(0x0C);
   EPD_2IN13_SendCommand(0x3F); EPD_2IN13_SendData(0x07);
 
-  if (temp91) {
-    // 原厂另一分支：0x1B 温度读取后写 0x1A=55 + 温度值，再 0x22=91。
-    // 当前硬件未接入原厂 bit-bang 温度读取，固定 25℃仅用于隔离波形分支影响。
+  if (tempMode == 1) {
+    // 固定值分支，仅复现历史构建；网页入口已隐藏。
     EPD_2IN13_SendCommand(0x1B);
     EPD_2IN13_SendCommand(0x1A); EPD_2IN13_SendData(0x55); EPD_2IN13_SendData(25);
     EPD_2IN13_SendCommand(0x22); EPD_2IN13_SendData(0x91);
+  } else if (tempMode == 2) {
+    uint8_t temperature;
+    EPD_2IN13_SendCommand(0x1B);
+    temperature = EPD_2IN13_ReadSharedByte();
+    if (temperature >= 10 && temperature <= 127) {
+      EPD_2IN13_SendCommand(0x1A); EPD_2IN13_SendData(0x55); EPD_2IN13_SendData(temperature);
+      EPD_2IN13_SendCommand(0x22); EPD_2IN13_SendData(0x91);
+    } else {
+      EPD_2IN13_SendCommand(0x22); EPD_2IN13_SendData(0xB1);
+    }
   } else {
     EPD_2IN13_SendCommand(0x22); EPD_2IN13_SendData(0xB1);
   }
@@ -658,7 +693,9 @@ void EPD_Init_With_Mode(uint8_t mode) {
       break;
     case EPD_MODE_FACTORY:
     case EPD_MODE_FACTORY_TEMP91:
-      EPD_2IN13_Init_FactorySequence(mode == EPD_MODE_FACTORY_TEMP91);
+    case EPD_MODE_FACTORY_TEMP_READ91:
+      EPD_2IN13_Init_FactorySequence(mode == EPD_MODE_FACTORY_TEMP91 ? 1 :
+                                     (mode == EPD_MODE_FACTORY_TEMP_READ91 ? 2 : 0));
       // 原厂实验当前网页只写 BW RAM；清除红色 RAM，避免上一次红层/随机 RAM 污染画面。
       EPD_2IN13_PrepareRedRAM();
       for (uint16_t i = 0; i < EPD_Buffer_Size; i++) {

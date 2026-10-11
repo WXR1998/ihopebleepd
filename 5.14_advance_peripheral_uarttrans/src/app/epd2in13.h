@@ -37,9 +37,10 @@ enum {
     EPD_MODE_GRAY = 0x3,
     EPD_MODE_BW3 = 0x4,   /* BW·三刷：灰度 LUT 单帧三叠刷（褪色实验 B） */
     EPD_MODE_FACTORY = 0x5, /* 原厂初始化序列实验（B1 分支） */
-    EPD_MODE_FACTORY_TEMP91 = 0x6, /* 原厂温度分支实验：固定 25℃，0x91 */
+    EPD_MODE_FACTORY_TEMP91 = 0x6, /* 历史固定 25℃分支（仅复现） */
+    EPD_MODE_FACTORY_TEMP_READ91 = 0x7, /* 原厂共享数据线读回温度实验 */
 
-    EPD_MODE_END = 0x7,
+    EPD_MODE_END = 0x8,
 };
 // #define EPD_2IN13_FULL			0
 // #define EPD_2IN13_PART			1
