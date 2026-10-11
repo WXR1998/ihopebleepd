@@ -184,6 +184,14 @@ static uint8_t EPD_2IN13_ReadSharedByte(void)
 {
   uint8_t value = 0;
   if (SPIHandle) { SPI_close(SPIHandle); SPIHandle = NULL; }
+  if (PIN_add(GPIOHandle, EPD_BB_CLK_PIN | PIN_INPUT_EN | PIN_PULLDOWN) != PIN_SUCCESS ||
+      PIN_add(GPIOHandle, EPD_BB_DATA_PIN | PIN_INPUT_EN | PIN_PULLDOWN) != PIN_SUCCESS) {
+    PIN_remove(GPIOHandle, EPD_BB_CLK_PIN);
+    PIN_remove(GPIOHandle, EPD_BB_DATA_PIN);
+    epd_spi_ensure_open();
+    epd_spi_error = 0xf1;
+    return 0;
+  }
   PIN_setConfig(GPIOHandle, PIN_BM_ALL,
                 EPD_BB_CLK_PIN | PIN_GPIO_OUTPUT_EN | PIN_PUSHPULL | PIN_GPIO_LOW);
   PIN_setConfig(GPIOHandle, PIN_BM_ALL,
@@ -199,6 +207,8 @@ static uint8_t EPD_2IN13_ReadSharedByte(void)
   DEV_Digital_Write(EPD_CS_PIN, 1);
   PIN_setConfig(GPIOHandle, PIN_BM_ALL, EPD_BB_CLK_PIN | PIN_INPUT_EN | PIN_PULLDOWN);
   PIN_setConfig(GPIOHandle, PIN_BM_ALL, EPD_BB_DATA_PIN | PIN_INPUT_EN | PIN_PULLDOWN);
+  PIN_remove(GPIOHandle, EPD_BB_CLK_PIN);
+  PIN_remove(GPIOHandle, EPD_BB_DATA_PIN);
   epd_spi_ensure_open();
   return value;
 }
