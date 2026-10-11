@@ -148,6 +148,12 @@ static int DEV_Digital_Read(uint32_t pin)
   return ret;
 }
 
+static void EPD_SetPower(uint8_t on)
+{
+  DEV_Digital_Write(EPD_POWER_PIN, on ? 0 : 1);
+  epd_panel_powered = on ? 1 : 0;
+}
+
 static void DEV_Delay_ms(uint16_t t)
 {
     Util_delay_ms(t);
@@ -349,8 +355,8 @@ void EPD_2IN13_ReadBusy(void)
     int busy_wait = 0;
     HwUARTPrintf("e-Paper busy\r\n");
 
-    // 电源脚是输出，必须读取输出锁存值；输入缓冲在输出模式下可能返回不确定值。
-    if (PIN_getOutputValue(EPD_POWER_PIN) == 1) {
+    // 供电状态由 EPD_SetPower 唯一维护；GPIO 电气回读不作为状态源。
+    if (!epd_panel_powered) {
         HwUARTPrintf("e-Paper busy: PANEL POWER OFF!\r\n");
         epd_spi_error = 0xf2;
         return;
@@ -382,7 +388,7 @@ void EPD_2IN13_Init() {
 void EPD_2IN13_Init_With_LUT(const unsigned char* lut)
 {
   // power on
-  DEV_Digital_Write(EPD_POWER_PIN, 0);
+  EPD_SetPower(1);
   DEV_Digital_Write(BLUE_LED_PIN, 0);
   DEV_Delay_ms(100);
   
@@ -593,7 +599,7 @@ void EPD_2IN13_Sleep(void)
         EPD_2IN13_SendData(0x01);
         DEV_Delay_ms(100);
 
-        DEV_Digital_Write(EPD_POWER_PIN, 1);
+        EPD_SetPower(0);
         DEV_Digital_Write(BLUE_LED_PIN, 1);
         DEV_Delay_ms(100);
 
@@ -617,7 +623,7 @@ void EPD_2IN13_Sleep(void)
     DEV_Delay_ms(100);
     
     // power off
-  DEV_Digital_Write(EPD_POWER_PIN, 1);
+  EPD_SetPower(0);
   DEV_Digital_Write(BLUE_LED_PIN, 1);
   DEV_Delay_ms(100);
 
@@ -672,7 +678,7 @@ void EPD_Display() {
  */
 static void EPD_2IN13_Init_FactorySequence(uint8_t tempMode)
 {
-  DEV_Digital_Write(EPD_POWER_PIN, 0);
+  EPD_SetPower(1);
   DEV_Digital_Write(BLUE_LED_PIN, 0);
   DEV_Delay_ms(100);
   EPD_2IN13_Reset();
