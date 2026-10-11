@@ -646,6 +646,15 @@ static void EPD_2IN13_Init_FactorySequence(uint8_t tempMode)
   EPD_2IN13_SendCommand(0x22); EPD_2IN13_SendData(0xA1);
   EPD_2IN13_SendCommand(0x20); EPD_2IN13_ReadBusy();
 
+  // 原厂 0x1B 读取发生在 0x3D/0x3E/0x3F 之前。
+  uint8_t temperature = 0;
+  if (tempMode == 1) {
+    EPD_2IN13_SendCommand(0x1B);
+  } else if (tempMode == 2) {
+    EPD_2IN13_SendCommand(0x1B);
+    temperature = EPD_2IN13_ReadSharedByte();
+  }
+
   // 原厂温度/时序参数：反汇编中的 0x3D/0x3E/0x3F
   EPD_2IN13_SendCommand(0x3D); EPD_2IN13_SendData(0x09); EPD_2IN13_SendData(0x09);
   EPD_2IN13_SendCommand(0x3E);
@@ -658,9 +667,6 @@ static void EPD_2IN13_Init_FactorySequence(uint8_t tempMode)
     EPD_2IN13_SendCommand(0x1A); EPD_2IN13_SendData(0x55); EPD_2IN13_SendData(25);
     EPD_2IN13_SendCommand(0x22); EPD_2IN13_SendData(0x91);
   } else if (tempMode == 2) {
-    uint8_t temperature;
-    EPD_2IN13_SendCommand(0x1B);
-    temperature = EPD_2IN13_ReadSharedByte();
     if (temperature >= 10 && temperature <= 127) {
       EPD_2IN13_SendCommand(0x1A); EPD_2IN13_SendData(0x55); EPD_2IN13_SendData(temperature);
       EPD_2IN13_SendCommand(0x22); EPD_2IN13_SendData(0x91);
