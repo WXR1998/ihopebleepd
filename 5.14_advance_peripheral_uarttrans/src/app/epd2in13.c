@@ -547,6 +547,7 @@ void EPD_2IN13_WriteRAM(const uint8_t *buf, const int len)
 
 static void EPD_2IN13_PreparePartialUpdate(void)
 {
+  HWUART_Printf("[PARTIAL] stage=prepare\r\n");
   EPD_2IN13_SendCommand(0x2C); EPD_2IN13_SendData(0x26);
   EPD_2IN13_ReadBusy();
   EPD_2IN13_SendCommand(0x32);
@@ -556,15 +557,19 @@ static void EPD_2IN13_PreparePartialUpdate(void)
   EPD_2IN13_SendData(0x00); EPD_2IN13_SendData(0x40); EPD_2IN13_SendData(0x00);
   EPD_2IN13_SendData(0x00);
   EPD_2IN13_SendCommand(0x22); EPD_2IN13_SendData(0xC0);
+  HWUART_Printf("[PARTIAL] stage=prepare_c0_busy\r\n");
   EPD_2IN13_SendCommand(0x20); EPD_2IN13_ReadBusy();
   EPD_2IN13_SendCommand(0x3C); EPD_2IN13_SendData(0x01);
+  HWUART_Printf("[PARTIAL] stage=prepare_done\r\n");
 }
 
 static void EPD_2IN13_UpdateDisplayPartial(void)
 {
+  HWUART_Printf("[PARTIAL] stage=update_0c_busy\r\n");
   EPD_2IN13_SendCommand(0x22); EPD_2IN13_SendData(0x0C);
   EPD_2IN13_SendCommand(0x20); EPD_2IN13_ReadBusy();
   DEV_Delay_ms(200);
+  HWUART_Printf("[PARTIAL] stage=update_done\r\n");
 }
 
 void EPD_2IN13_UpdateDisplay(void)
@@ -660,6 +665,7 @@ void EPD_Display() {
                      epd_display_mode == EPD_MODE_FACTORY_TEMP_READ91_PARTIAL) ? 2 : 1);
   for (uint8_t i = 0; i < passes; i++) {
     if (epd_display_mode == EPD_MODE_FACTORY_TEMP_READ91_PARTIAL && i == 1) {
+      HWUART_Printf("[PARTIAL] stage=after_full_pass\r\n");
       EPD_2IN13_PreparePartialUpdate();
       EPD_2IN13_UpdateDisplayPartial();
     } else {
