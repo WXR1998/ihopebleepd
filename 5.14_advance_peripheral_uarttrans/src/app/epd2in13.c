@@ -592,6 +592,16 @@ void EPD_2IN13_LoadLutConfig(const uint8_t *cfg, uint8_t n)
   EPD_2IN13_SendCommand(0x3C); EPD_2IN13_SendData(0x01);
 }
 
+/* 波形实验入口：载入 LUT 并按指定激活值驱动一次（RAM 内容不变）。
+ * 收进本文件以复用 DEV_Delay_ms/ReadBusy（task_epd 无这些符号的可见性）。 */
+void EPD_2IN13_ActivateWithLut(const uint8_t *cfg, uint8_t n, uint8_t act)
+{
+  EPD_2IN13_LoadLutConfig(cfg, n);
+  EPD_2IN13_SendCommand(0x22); EPD_2IN13_SendData(act);
+  EPD_2IN13_SendCommand(0x20); EPD_2IN13_ReadBusy();
+  DEV_Delay_ms(200);
+}
+
 void EPD_2IN13_UpdateDisplay(void)
 {
      HwUARTPrintf("turn on display\r\n");

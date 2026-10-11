@@ -69,6 +69,8 @@ void EPD_2IN13_UpdateDisplay(void);
 
 /* 波形实验：写入自定义 LUT（n=76 全表或 70 仅波形），调用方随后 0x22 激活 */
 void EPD_2IN13_LoadLutConfig(const uint8_t *cfg, uint8_t n);
+/* 波形实验入口：载入 LUT 并按指定激活值驱动一次（RAM 内容不变） */
+void EPD_2IN13_ActivateWithLut(const uint8_t *cfg, uint8_t n, uint8_t act);
 
 // void EPD_2IN13_DisplayPart(UBYTE *Image);
 // void EPD_2IN13_DisplayPartBaseImage(UBYTE *Image);

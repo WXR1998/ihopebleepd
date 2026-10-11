@@ -295,10 +295,7 @@ void handle_cmd()
           break;
         }
         HWUART_Printf("[LUT] act=0x%02X n=%u\r\n", act, n);
-        EPD_2IN13_LoadLutConfig(epd_rx_frame + 3, n);
-        EPD_2IN13_SendCommand(0x22); EPD_2IN13_SendData(act);
-        EPD_2IN13_SendCommand(0x20); EPD_2IN13_ReadBusy();
-        DEV_Delay_ms(200);
+        EPD_2IN13_ActivateWithLut(epd_rx_frame + 3, n, act);
       }
       break;
     default:
