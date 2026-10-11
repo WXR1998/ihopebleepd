@@ -41,8 +41,10 @@ enum {
     EPD_MODE_FACTORY_TEMP_READ91 = 0x7, /* 原厂共享数据线读回温度，单刷 */
     EPD_MODE_FACTORY_TEMP_READ91_X2 = 0x8, /* 同一 0x91 帧连续激活两次 */
     EPD_MODE_FACTORY_TEMP_READ91_PARTIAL = 0x9, /* C7 后使用 0x0C 局部续刷 */
+    EPD_MODE_FACTORY_TEMP_READ91_NO1A = 0xA, /* 91 激活但不写 0x1A 温度——隔离温度写入对黑度的影响 */
+    EPD_MODE_FACTORY_TEMP_READ91_PARTIAL_X3 = 0xB, /* C7 后局部续刷激活 ×3——无清白相加深实验 */
 
-    EPD_MODE_END = 0xA,
+    EPD_MODE_END = 0xC,
 };
 // #define EPD_2IN13_FULL			0
 // #define EPD_2IN13_PART			1
@@ -64,6 +66,9 @@ void EPD_2IN13_PrepareRedRAM(void);
 void EPD_2IN13_WriteRAM(const uint8_t *buf, const int len);
 
 void EPD_2IN13_UpdateDisplay(void);
+
+/* 波形实验：写入自定义 LUT（n=76 全表或 70 仅波形），调用方随后 0x22 激活 */
+void EPD_2IN13_LoadLutConfig(const uint8_t *cfg, uint8_t n);
 
 // void EPD_2IN13_DisplayPart(UBYTE *Image);
 // void EPD_2IN13_DisplayPartBaseImage(UBYTE *Image);

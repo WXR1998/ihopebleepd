@@ -572,6 +572,26 @@ static void EPD_2IN13_UpdateDisplayPartial(void)
   HWUART_Printf("[PARTIAL] stage=update_done\r\n");
 }
 
+/* 波形实验通道：写入上传的自定义 LUT 配置后由调用方自行 0x22 激活。
+ * cfg 格式与 EPD_2IN13_lut_bw_update 等表一致：前 70 字节为波形，
+ * 随后 6 字节依次进 0x03 / 0x04×3 / 0x3A(虚线) / 0x3B(门宽)。
+ * n==70 时只换波形表，保留面板当前 VCOM/时序寄存器。 */
+void EPD_2IN13_LoadLutConfig(const uint8_t *cfg, uint8_t n)
+{
+  EPD_2IN13_SendCommand(0x32);
+  for (uint8_t i = 0; i < 70; i++) {
+    EPD_2IN13_SendData(cfg[i]);
+  }
+  if (n >= 76) {
+    EPD_2IN13_SendCommand(0x03); EPD_2IN13_SendData(cfg[70]);
+    EPD_2IN13_SendCommand(0x04); EPD_2IN13_SendData(cfg[71]);
+    EPD_2IN13_SendData(cfg[72]); EPD_2IN13_SendData(cfg[73]);
+    EPD_2IN13_SendCommand(0x3A); EPD_2IN13_SendData(cfg[74]);
+    EPD_2IN13_SendCommand(0x3B); EPD_2IN13_SendData(cfg[75]);
+  }
+  EPD_2IN13_SendCommand(0x3C); EPD_2IN13_SendData(0x01);
+}
+
 void EPD_2IN13_UpdateDisplay(void)
 {
      HwUARTPrintf("turn on display\r\n");
@@ -659,14 +679,20 @@ void EPD_Clear(uint8_t tofill) {
 }
 
 void EPD_Display() {
-  // BW·三刷：同一帧 RAM 连续激活 3 次（第 2/3 次走 BB 类再驱动，等效灰度三叠刷）
-  uint8_t passes = (epd_display_mode == EPD_MODE_BW3) ? 3 :
-                   ((epd_display_mode == EPD_MODE_FACTORY_TEMP_READ91_X2 ||
-                     epd_display_mode == EPD_MODE_FACTORY_TEMP_READ91_PARTIAL) ? 2 : 1);
+  // 局部续刷次数：0x9=1 次；0xB=3 次（加深实验——同一帧 RAM 连续局部激活，
+  // 无清白相，验证能否在 91 全刷基础上叠出更深黑度）
+  uint8_t partial_repeats =
+      (epd_display_mode == EPD_MODE_FACTORY_TEMP_READ91_PARTIAL) ? 1 :
+      (epd_display_mode == EPD_MODE_FACTORY_TEMP_READ91_PARTIAL_X3) ? 3 : 0;
+  uint8_t passes = partial_repeats ? 1 + partial_repeats :
+                   (epd_display_mode == EPD_MODE_BW3) ? 3 :
+                   ((epd_display_mode == EPD_MODE_FACTORY_TEMP_READ91_X2) ? 2 : 1);
   for (uint8_t i = 0; i < passes; i++) {
-    if (epd_display_mode == EPD_MODE_FACTORY_TEMP_READ91_PARTIAL && i == 1) {
+    if (partial_repeats && i == 1) {
       HWUART_Printf("[PARTIAL] stage=after_full_pass\r\n");
       EPD_2IN13_PreparePartialUpdate();
+    }
+    if (partial_repeats && i >= 1) {
       EPD_2IN13_UpdateDisplayPartial();
     } else {
       EPD_2IN13_UpdateDisplay();
@@ -719,7 +745,7 @@ static void EPD_2IN13_Init_FactorySequence(uint8_t tempMode)
   uint8_t temperature = 0;
   if (tempMode == 1) {
     EPD_2IN13_SendCommand(0x1B);
-  } else if (tempMode == 2) {
+  } else if (tempMode == 2 || tempMode == 3) {
     EPD_2IN13_SendCommand(0x1B);
     temperature = EPD_2IN13_ReadSharedByte();
   }
@@ -742,6 +768,10 @@ static void EPD_2IN13_Init_FactorySequence(uint8_t tempMode)
     } else {
       EPD_2IN13_SendCommand(0x22); EPD_2IN13_SendData(0xB1);
     }
+  } else if (tempMode == 3) {
+    // NO1A 实验：温度仅读回回报，不写 0x1A，直接 91 激活——
+    // 隔离「0x1A 温度写入导致 91 路径变淡」假设（1.34 实测 91 淡、B1 深）
+    EPD_2IN13_SendCommand(0x22); EPD_2IN13_SendData(0x91);
   } else {
     EPD_2IN13_SendCommand(0x22); EPD_2IN13_SendData(0xB1);
   }
@@ -781,10 +811,14 @@ void EPD_Init_With_Mode(uint8_t mode) {
     case EPD_MODE_FACTORY_TEMP_READ91:
     case EPD_MODE_FACTORY_TEMP_READ91_X2:
     case EPD_MODE_FACTORY_TEMP_READ91_PARTIAL:
+    case EPD_MODE_FACTORY_TEMP_READ91_PARTIAL_X3:
+    case EPD_MODE_FACTORY_TEMP_READ91_NO1A:
       EPD_2IN13_Init_FactorySequence(mode == EPD_MODE_FACTORY_TEMP91 ? 1 :
                                      ((mode == EPD_MODE_FACTORY_TEMP_READ91 ||
                                        mode == EPD_MODE_FACTORY_TEMP_READ91_X2 ||
-                                       mode == EPD_MODE_FACTORY_TEMP_READ91_PARTIAL) ? 2 : 0));
+                                       mode == EPD_MODE_FACTORY_TEMP_READ91_PARTIAL ||
+                                       mode == EPD_MODE_FACTORY_TEMP_READ91_PARTIAL_X3) ? 2 :
+                                      (mode == EPD_MODE_FACTORY_TEMP_READ91_NO1A ? 3 : 0)));
       // 原厂实验当前网页只写 BW RAM；清除红色 RAM，避免上一次红层/随机 RAM 污染画面。
       EPD_2IN13_PrepareRedRAM();
       for (uint16_t i = 0; i < EPD_Buffer_Size; i++) {

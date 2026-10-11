@@ -62,6 +62,7 @@ enum {
   EPD_CMD_SHUTDOWN = 0x6,
   EPD_CMD_RESET = 0x7,
   EPD_CMD_SLEEP_CFG = 0x8,
+  EPD_CMD_LUT_UPDATE = 0x9,
 };
  
  
@@ -237,7 +238,9 @@ void handle_cmd()
       epd_initialized = true;
       if (epd_rx_frame[1] == EPD_MODE_FACTORY_TEMP_READ91 ||
           epd_rx_frame[1] == EPD_MODE_FACTORY_TEMP_READ91_X2 ||
-          epd_rx_frame[1] == EPD_MODE_FACTORY_TEMP_READ91_PARTIAL) {
+          epd_rx_frame[1] == EPD_MODE_FACTORY_TEMP_READ91_PARTIAL ||
+          epd_rx_frame[1] == EPD_MODE_FACTORY_TEMP_READ91_PARTIAL_X3 ||
+          epd_rx_frame[1] == EPD_MODE_FACTORY_TEMP_READ91_NO1A) {
         resp_fram_len = 4;
         epd_resp_frame[2] = epd_last_temperature;
         epd_resp_frame[3] = epd_last_status;
@@ -278,6 +281,25 @@ void handle_cmd()
       }
       epd_sleep_mode = epd_rx_frame[1];
       HWUART_Printf("[EPD] sleep mode=%d\r\n", epd_sleep_mode);
+      break;
+    case EPD_CMD_LUT_UPDATE:
+      // 波形实验：RAM 内容不变，上传 LUT 后用指定激活值重新驱动一次。
+      // 帧格式：09 <激活字节> <长度n(70或76)> <LUT 字节×n>，总长 3+n ≤ 255
+      ASSERT_INIT;
+      ASSERT_MIN_LEN(rx_fram_len, 4);
+      {
+        const uint8_t act = epd_rx_frame[1];
+        const uint8_t n = epd_rx_frame[2];
+        if ((n != 70 && n != 76) || rx_fram_len < 3 + n) {
+          epd_resp_frame[1] = 0xfe;
+          break;
+        }
+        HWUART_Printf("[LUT] act=0x%02X n=%u\r\n", act, n);
+        EPD_2IN13_LoadLutConfig(epd_rx_frame + 3, n);
+        EPD_2IN13_SendCommand(0x22); EPD_2IN13_SendData(act);
+        EPD_2IN13_SendCommand(0x20); EPD_2IN13_ReadBusy();
+        DEV_Delay_ms(200);
+      }
       break;
     default:
       HWUART_Printf("unknown cmd\r\n");
