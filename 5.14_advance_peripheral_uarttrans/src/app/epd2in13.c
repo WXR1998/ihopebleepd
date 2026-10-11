@@ -349,8 +349,8 @@ void EPD_2IN13_ReadBusy(void)
     int busy_wait = 0;
     HwUARTPrintf("e-Paper busy\r\n");
 
-    // 面板断电时 BUSY 被上拉读成 HIGH，会白等满 20s——快速失败并标记
-    if (DEV_Digital_Read(EPD_POWER_PIN) == 1) {
+    // 电源脚是输出，必须读取输出锁存值；输入缓冲在输出模式下可能返回不确定值。
+    if (PIN_getOutputValue(EPD_POWER_PIN) == 1) {
         HwUARTPrintf("e-Paper busy: PANEL POWER OFF!\r\n");
         epd_spi_error = 0xf2;
         return;
