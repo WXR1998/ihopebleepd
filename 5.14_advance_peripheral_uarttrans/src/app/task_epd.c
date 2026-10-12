@@ -279,12 +279,9 @@ void handle_cmd()
       epd_initialized = false;
       break;
     case EPD_CMD_UPDATE_CLR_RED:
-      ASSERT_INIT;
-      HWUART_Printf("[E2] clear red RAM + re-activate\r\n");
-      EPD_2IN13_ClearRedRAM();
-      EPD_2IN13_UpdateDisplay();
-      EPD_2IN13_Sleep();
-      epd_initialized = false;
+      epd_clear_red_on_update = !epd_clear_red_on_update;
+      HWUART_Printf("[E2] clear_red_on_update=%d\r\n", epd_clear_red_on_update);
+      epd_resp_frame[1] = epd_clear_red_on_update;
       break;
     case EPD_CMD_RESET:
       // 不回 ACK——复位后链路即刻消失，网页以断开事件为确认

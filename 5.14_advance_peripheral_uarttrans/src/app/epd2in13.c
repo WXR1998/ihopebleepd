@@ -11,6 +11,8 @@ uint8_t epd_sleep_mode = EPD_SLEEP_DEFAULT;
 
 // 当前显示模式（EPD_Display 据此决定 BW·三刷的激活次数）
 uint8_t epd_display_mode = EPD_MODE_BW;
+/* E2: 1=下次全刷激活前清红 RAM（0x26 全 0），由 0B 命令切换 */
+uint8_t epd_clear_red_on_update = 0;
 uint8_t epd_last_temperature = 0xFF;
 uint8_t epd_last_status = 0xFF;
 static uint8_t epd_panel_powered = 0;
@@ -860,6 +862,10 @@ void EPD_Display() {
     if (partial_repeats && i >= 1) {
       EPD_2IN13_UpdateDisplayPartial();
     } else {
+      if (epd_clear_red_on_update) {
+        HWUART_Printf("[E2] clear red RAM before activate\r\n");
+        EPD_2IN13_ClearRedRAM();
+      }
       EPD_2IN13_UpdateDisplay();
     }
   }
