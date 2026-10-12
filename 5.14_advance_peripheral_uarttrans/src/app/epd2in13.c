@@ -1065,20 +1065,8 @@ void EPD_Init_With_Mode(uint8_t mode) {
       EPD_2IN13_PrepareRedRAM();
       for (uint16_t i = 0; i < EPD_Buffer_Size; i++) EPD_2IN13_SendData(0x00);
       break;
-    case EPD_MODE_T17_I2:
-      epd_interrupt_delay_s = 2;
-      EPD_2IN13_Init_With_LUT(NULL);
-      EPD_2IN13_PrepareRedRAM();
-      for (uint16_t i = 0; i < EPD_Buffer_Size; i++) EPD_2IN13_SendData(0x00);
-      break;
-    case EPD_MODE_T17_I3:
-      epd_interrupt_delay_s = 3;
-      EPD_2IN13_Init_With_LUT(NULL);
-      EPD_2IN13_PrepareRedRAM();
-      for (uint16_t i = 0; i < EPD_Buffer_Size; i++) EPD_2IN13_SendData(0x00);
-      break;
-    case EPD_MODE_T17_I4:
-      epd_interrupt_delay_s = 4;
+    case EPD_MODE_T17_I2: /* 0x13..0x19 = 2..8s 共享 case */
+      epd_interrupt_delay_s = mode - EPD_MODE_T17_I2 + 2;
       EPD_2IN13_Init_With_LUT(NULL);
       EPD_2IN13_PrepareRedRAM();
       for (uint16_t i = 0; i < EPD_Buffer_Size; i++) EPD_2IN13_SendData(0x00);
