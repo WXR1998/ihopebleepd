@@ -48,8 +48,11 @@ enum {
     EPD_MODE_T2_PRE40 = 0xF,   /* T2: 写 RAM 后 C7 前 0x22 0x40 预激活（213ICE 必发） */
     EPD_MODE_T4_21DUAL = 0x10, /* T4: init 尾 0x21 双字节 00 80（bw213_m3n 形式） */
     EPD_MODE_T5_ACT_C4 = 0x11, /* T5: 显示激活 C4 替代 C7（bw213_m OTP+Mode1） */
+    EPD_MODE_T17_I2 = 0x13, /* T17: 中途打断锁峰值——激活后 2s 强制深睡断电（跳过 ReadBusy） */
+    EPD_MODE_T17_I3 = 0x14, /* T17: 3s */
+    EPD_MODE_T17_I4 = 0x15, /* T17: 4s */
 
-    EPD_MODE_END = 0x12,
+    EPD_MODE_END = 0x16,
 };
 
 /* Non-refresh diagnostics: mode 0 reads 0x2F and 0x1B; mode 1 writes a
@@ -83,6 +86,7 @@ extern uint8_t epd_clear_red_on_update; /* E2: 0B 切换；1=下次全刷前清�
 extern uint8_t epd_gate296;    /* T1: 296 门极窗口参数（init+prepare 共用） */
 extern uint8_t epd_pre_act_40; /* T2: 0x40 预激活开关 */
 extern uint8_t epd_act_c4;     /* T5: C4 激活开关 */
+extern uint8_t epd_interrupt_delay_s; /* T17: >0=激活后延时秒数打断（跳过 ReadBusy 直接深睡断电） */
 void EPD_2IN13_ReadBusy(void);
 
 /* 波形实验：写入自定义 LUT（n=76 全表或 70 仅波形），调用方随后 0x22 激活 */

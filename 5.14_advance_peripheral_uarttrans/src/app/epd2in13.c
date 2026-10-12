@@ -17,6 +17,7 @@ uint8_t epd_clear_red_on_update = 0;
 uint8_t epd_gate296 = 0;
 uint8_t epd_pre_act_40 = 0;
 uint8_t epd_act_c4 = 0;
+uint8_t epd_interrupt_delay_s = 0;
 uint8_t epd_last_temperature = 0xFF;
 uint8_t epd_last_status = 0xFF;
 static uint8_t epd_panel_powered = 0;
@@ -775,6 +776,14 @@ void EPD_2IN13_UpdateDisplay(void)
     EPD_2IN13_SendCommand(0x22);
     EPD_2IN13_SendData(epd_act_c4 ? 0xC4 : 0xC7); // T5: C4(OTP+Mode1) vs C7
     EPD_2IN13_SendCommand(0x20);
+    if (epd_interrupt_delay_s) {
+      // T17 中途打断锁峰值：不等 BUSY，延时 N 秒直接返回——调用方紧随 EPD_2IN13_Sleep()
+      // 深睡+断电，把粒子锁在波形峰值相位（实测峰值 ~1.4 > 目标 1.0，正常终态仅 0.4-0.6）
+      HWUART_Printf("[T17] interrupt in %ds
+", epd_interrupt_delay_s);
+      DEV_Delay_ms(epd_interrupt_delay_s * 1000);
+      return;
+    }
     EPD_2IN13_ReadBusy();
     DEV_Delay_ms(200);
 }
@@ -1008,7 +1017,7 @@ static void EPD_2IN13_Init_SSD1675B(void)
 
 void EPD_Init_With_Mode(uint8_t mode) {
   epd_display_mode = mode;
-  epd_gate296 = 0; epd_pre_act_40 = 0; epd_act_c4 = 0;
+  epd_gate296 = 0; epd_pre_act_40 = 0; epd_act_c4 = 0; epd_interrupt_delay_s = 0;
   switch(mode) {
     case EPD_MODE_BW:
       // 2026-10-10 实测（1.17-diag 检测图）：自定义 lut_bw_update 在 DEPG0213RH
@@ -1053,6 +1062,24 @@ void EPD_Init_With_Mode(uint8_t mode) {
       break;
     case EPD_MODE_T5_ACT_C4:
       epd_act_c4 = 1;
+      EPD_2IN13_Init_With_LUT(NULL);
+      EPD_2IN13_PrepareRedRAM();
+      for (uint16_t i = 0; i < EPD_Buffer_Size; i++) EPD_2IN13_SendData(0x00);
+      break;
+    case EPD_MODE_T17_I2:
+      epd_interrupt_delay_s = 2;
+      EPD_2IN13_Init_With_LUT(NULL);
+      EPD_2IN13_PrepareRedRAM();
+      for (uint16_t i = 0; i < EPD_Buffer_Size; i++) EPD_2IN13_SendData(0x00);
+      break;
+    case EPD_MODE_T17_I3:
+      epd_interrupt_delay_s = 3;
+      EPD_2IN13_Init_With_LUT(NULL);
+      EPD_2IN13_PrepareRedRAM();
+      for (uint16_t i = 0; i < EPD_Buffer_Size; i++) EPD_2IN13_SendData(0x00);
+      break;
+    case EPD_MODE_T17_I4:
+      epd_interrupt_delay_s = 4;
       EPD_2IN13_Init_With_LUT(NULL);
       EPD_2IN13_PrepareRedRAM();
       for (uint16_t i = 0; i < EPD_Buffer_Size; i++) EPD_2IN13_SendData(0x00);
