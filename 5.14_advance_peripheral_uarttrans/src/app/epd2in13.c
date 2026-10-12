@@ -111,6 +111,22 @@ const unsigned char EPD_2IN13_lut_bw_update[]= {
     0x15,0x41,0xA8,0x32,0x30,0x0A,
 };
 
+/* DKE DEPG0213 / public SSD1675B reference full-update LUT (70 bytes). */
+const unsigned char EPD_2IN13_lut_ssd1675b_full[] = {
+  0x80,0x60,0x40,0x00,0x00,0x00,0x00,
+  0x10,0x60,0x20,0x00,0x00,0x00,0x00,
+  0x80,0x60,0x40,0x00,0x00,0x00,0x00,
+  0x10,0x60,0x20,0x00,0x00,0x00,0x00,
+  0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+  0x03,0x03,0x00,0x00,0x02,
+  0x09,0x09,0x00,0x00,0x02,
+  0x03,0x03,0x00,0x00,0x02,
+  0x00,0x00,0x00,0x00,0x00,
+  0x00,0x00,0x00,0x00,0x00,
+  0x00,0x00,0x00,0x00,0x00,
+  0x00,0x00,0x00,0x00,0x00,
+};
+
 /* 同类 2.13 控制器局部更新 LUT；仅由 91→partial 诊断模式使用。 */
 const unsigned char EPD_2IN13_lut_partial_update[] = {
   0x00,0x00,0x00,0x00,0x00,0x00,0x00,
@@ -915,6 +931,38 @@ static void EPD_2IN13_Init_FactorySequence(uint8_t tempMode)
   DEV_Delay_ms(100);
 }
 
+static void EPD_2IN13_Init_SSD1675B(void)
+{
+  static const uint8_t driver[] = { 0xF9, 0x00, 0x00 };
+  EPD_SetPower(1);
+  DEV_Digital_Write(BLUE_LED_PIN, 0);
+  DEV_Delay_ms(100);
+  EPD_2IN13_Reset();
+  EPD_2IN13_ReadBusy();
+  EPD_2IN13_SendCommand(0x12);
+  EPD_2IN13_ReadBusy();
+  EPD_2IN13_SendCommand(0x74); EPD_2IN13_SendData(0x54);
+  EPD_2IN13_SendCommand(0x7E); EPD_2IN13_SendData(0x3B);
+  EPD_2IN13_SendCommand(0x01);
+  EPD_2IN13_SendData(driver[0]); EPD_2IN13_SendData(driver[1]); EPD_2IN13_SendData(driver[2]);
+  EPD_2IN13_SendCommand(0x11); EPD_2IN13_SendData(0x01);
+  EPD_2IN13_SendCommand(0x44); EPD_2IN13_SendData(0x00); EPD_2IN13_SendData(0x0C);
+  EPD_2IN13_SendCommand(0x45);
+  EPD_2IN13_SendData(0xF9); EPD_2IN13_SendData(0x00);
+  EPD_2IN13_SendData(0x00); EPD_2IN13_SendData(0x00);
+  EPD_2IN13_SendCommand(0x3C); EPD_2IN13_SendData(0x01);
+  EPD_2IN13_SendCommand(0x2C); EPD_2IN13_SendData(0x5A);
+  EPD_2IN13_SendCommand(0x03); EPD_2IN13_SendData(0x17);
+  EPD_2IN13_SendCommand(0x04);
+  EPD_2IN13_SendData(0x41); EPD_2IN13_SendData(0xAC); EPD_2IN13_SendData(0x32);
+  EPD_2IN13_SendCommand(0x3A); EPD_2IN13_SendData(0x02);
+  EPD_2IN13_SendCommand(0x3B); EPD_2IN13_SendData(0x0D);
+  EPD_2IN13_SendCommand(0x32);
+  for (uint8_t i = 0; i < 70; ++i) EPD_2IN13_SendData(EPD_2IN13_lut_ssd1675b_full[i]);
+  EPD_2IN13_SendCommand(0x4E); EPD_2IN13_SendData(0x00);
+  EPD_2IN13_SendCommand(0x4F); EPD_2IN13_SendData(0xF9); EPD_2IN13_SendData(0x00);
+}
+
 void EPD_Init_With_Mode(uint8_t mode) {
   epd_display_mode = mode;
   switch(mode) {
@@ -940,6 +988,9 @@ void EPD_Init_With_Mode(uint8_t mode) {
       // 褪色实验 B：灰度 LUT + 同帧 RAM 三叠刷（EPD_Display 放行 3 次激活）。
       // 流程约束：网页须先 01FF 清白（灰度 LUT 无「黑→白」相）。
       EPD_2IN13_Init_With_LUT(EPD_2IN13_lut_gray_update);
+      break;
+    case EPD_MODE_SSD1675B:
+      EPD_2IN13_Init_SSD1675B();
       break;
     case EPD_MODE_FACTORY:
     case EPD_MODE_FACTORY_TEMP91:

@@ -43,8 +43,9 @@ enum {
     EPD_MODE_FACTORY_TEMP_READ91_PARTIAL = 0x9, /* C7 后使用 0x0C 局部续刷 */
     EPD_MODE_FACTORY_TEMP_READ91_NO1A = 0xA, /* 91 激活但不写 0x1A 温度——隔离温度写入对黑度的影响 */
     EPD_MODE_FACTORY_TEMP_READ91_PARTIAL_X3 = 0xB, /* C7 后局部续刷激活 ×3——无清白相加深实验 */
+    EPD_MODE_SSD1675B = 0xC, /* DEPG0213/SSD1675B reference init + LUT */
 
-    EPD_MODE_END = 0xC,
+    EPD_MODE_END = 0xD,
 };
 
 /* Non-refresh diagnostics: mode 0 reads 0x2F and 0x1B; mode 1 writes a
