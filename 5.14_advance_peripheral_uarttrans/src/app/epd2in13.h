@@ -48,9 +48,13 @@ enum {
     EPD_MODE_T2_PRE40 = 0xF,   /* T2: 写 RAM 后 C7 前 0x22 0x40 预激活（213ICE 必发） */
     EPD_MODE_T4_21DUAL = 0x10, /* T4: init 尾 0x21 双字节 00 80（bw213_m3n 形式） */
     EPD_MODE_T5_ACT_C4 = 0x11, /* T5: 显示激活 C4 替代 C7（bw213_m OTP+Mode1） */
-    /* T17: 中途打断锁峰值——激活后 (mode-0x11) 秒强制深睡断电（跳过 ReadBusy）
-     * 0x13=2s 0x14=3s 0x15=4s 0x16=5s 0x17=6s 0x18=7s 0x19=8s */
+    /* T17: 中途打断锁峰值——激活后 (mode-0x13+2) 秒强制深睡断电（跳过 ReadBusy） */
     EPD_MODE_T17_I2 = 0x13,
+    EPD_MODE_T17_I3 = 0x14,
+    EPD_MODE_T17_I4 = 0x15,
+    EPD_MODE_T17_I5 = 0x16,
+    EPD_MODE_T17_I6 = 0x17,
+    EPD_MODE_T17_I7 = 0x18,
     EPD_MODE_T17_I8 = 0x19,
 
     EPD_MODE_END = 0x1A,
