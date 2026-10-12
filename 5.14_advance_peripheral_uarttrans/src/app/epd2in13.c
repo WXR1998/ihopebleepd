@@ -1036,6 +1036,9 @@ void EPD_Init_With_Mode(uint8_t mode) {
     case EPD_MODE_T1_GATE296:
       epd_gate296 = 1;
       EPD_2IN13_Init_With_LUT(NULL);
+      // 修复（v13 实测红屏）：296 门窗口下同样清红——红位参与 C7 相位选择
+      EPD_2IN13_PrepareRedRAM();
+      for (uint16_t i = 0; i < EPD_Buffer_Size; i++) EPD_2IN13_SendData(0x00);
       break;
     case EPD_MODE_T2_PRE40:
       epd_pre_act_40 = 1;
