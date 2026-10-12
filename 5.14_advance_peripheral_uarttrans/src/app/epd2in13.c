@@ -252,10 +252,65 @@ static uint8_t EPD_2IN13_ReadSharedByte(void)
   return value;
 }
 
+/* Read an arbitrary number of bytes from the shared DIO19 path. The first
+ * byte returned by some SSD16xx parts is a dummy; callers decide whether to
+ * discard it for a given register. */
+static uint16_t EPD_2IN13_ReadSharedBytes(uint8_t *buf, uint16_t count)
+{
+  if (!buf || count == 0) return 0;
+  if (SPIHandle) { SPI_close(SPIHandle); SPIHandle = NULL; }
+  if (PIN_add(GPIOHandle, EPD_BB_CLK_PIN | PIN_INPUT_EN | PIN_PULLDOWN) != PIN_SUCCESS ||
+      PIN_add(GPIOHandle, EPD_BB_DATA_PIN | PIN_INPUT_EN | PIN_PULLDOWN) != PIN_SUCCESS) {
+    PIN_remove(GPIOHandle, EPD_BB_CLK_PIN);
+    PIN_remove(GPIOHandle, EPD_BB_DATA_PIN);
+    epd_spi_ensure_open();
+    epd_spi_error = 0xf1;
+    return 0;
+  }
+  PIN_setConfig(GPIOHandle, PIN_BM_ALL,
+                EPD_BB_CLK_PIN | PIN_GPIO_OUTPUT_EN | PIN_PUSHPULL | PIN_GPIO_LOW);
+  PIN_setConfig(GPIOHandle, PIN_BM_ALL,
+                EPD_BB_DATA_PIN | PIN_INPUT_EN | PIN_PULLDOWN);
+  DEV_Digital_Write(EPD_CS_PIN, 0);
+  DEV_Digital_Write(EPD_DC_PIN, 1);
+  DEV_Digital_Write(EPD_BB_CLK_PIN, 0);
+  for (uint16_t byte = 0; byte < count; ++byte) {
+    uint8_t value = 0;
+    for (uint8_t bit = 0; bit < 8; ++bit) {
+      value = (uint8_t)((value << 1) | (PIN_getInputValue(EPD_BB_DATA_PIN) ? 1 : 0));
+      DEV_Digital_Write(EPD_BB_CLK_PIN, 1);
+      DEV_Digital_Write(EPD_BB_CLK_PIN, 0);
+    }
+    buf[byte] = value;
+  }
+  DEV_Digital_Write(EPD_CS_PIN, 1);
+  PIN_setConfig(GPIOHandle, PIN_BM_ALL,
+                EPD_BB_CLK_PIN | PIN_INPUT_EN | PIN_PULLDOWN);
+  PIN_setConfig(GPIOHandle, PIN_BM_ALL,
+                EPD_BB_DATA_PIN | PIN_INPUT_EN | PIN_PULLDOWN);
+  PIN_remove(GPIOHandle, EPD_BB_CLK_PIN);
+  PIN_remove(GPIOHandle, EPD_BB_DATA_PIN);
+  epd_spi_ensure_open();
+  if (count > 0) epd_last_temperature = buf[0];
+  if (count > 1) epd_last_status = buf[1];
+  return count;
+}
+
+static uint8_t EPD_2IN13_ProbeNext(uint16_t *state)
+{
+  uint8_t out = 0;
+  for (uint8_t bit = 0; bit < 8; ++bit) {
+    uint16_t lsb = (uint16_t)(*state & 1u);
+    *state >>= 1;
+    if (lsb) *state ^= 0xB400u;
+    out = (uint8_t)((out << 1) | lsb);
+  }
+  return out;
+}
+
 /* Non-refresh controller probe. This deliberately avoids 0x20/0x22 and LUT
- * loading. Mode 0 reads status/temperature bytes; mode 1 writes four bytes to
- * BW RAM and reads the controller's 0x27 path back. Readback is diagnostic:
- * the first byte may be a controller dummy byte, so callers must retain both. */
+ * loading. Mode 0 reads status/temperature bytes; mode 1 writes a RAM window
+ * and reports readback match count plus first mismatch index. */
 uint8_t EPD_2IN13_Probe(uint8_t mode, uint8_t out[4])
 {
   if (!out || (mode != EPD_PROBE_REGISTERS && mode != EPD_PROBE_RAM)) return 0xff;
@@ -274,17 +329,38 @@ uint8_t EPD_2IN13_Probe(uint8_t mode, uint8_t out[4])
     out[1] = epd_last_temperature;
     out[2] = epd_last_status;
   } else {
-    static const uint8_t pattern[4] = { 0xA5, 0x3C, 0x5A, 0xC3 };
+    enum { PROBE_COLS = 50, PROBE_ROWS = 240 };
+    uint8_t readback[PROBE_COLS + 1];
+    uint16_t state = 0xACE1;
+    uint16_t matches = 0;
+    uint16_t first_mismatch = 0xFFFF;
+    /* 240*50 = 12000 bytes: exceeds a 160x296 SSD1675A/B plane (5920 B)
+     * while remaining within a 400x300 SSD1619A-class plane (15000 B). */
+    EPD_2IN13_SendCommand(0x11); EPD_2IN13_SendData(0x03);
+    EPD_2IN13_SendCommand(0x44); EPD_2IN13_SendData(0x00); EPD_2IN13_SendData(PROBE_COLS - 1);
+    EPD_2IN13_SendCommand(0x45); EPD_2IN13_SendData(0x00); EPD_2IN13_SendData(0x00);
+    EPD_2IN13_SendData((PROBE_ROWS - 1) & 0xff); EPD_2IN13_SendData((PROBE_ROWS - 1) >> 8);
     EPD_2IN13_SendCommand(0x4E); EPD_2IN13_SendData(0x00);
     EPD_2IN13_SendCommand(0x4F); EPD_2IN13_SendData(0x00); EPD_2IN13_SendData(0x00);
     EPD_2IN13_SendCommand(0x24);
-    for (uint8_t i = 0; i < sizeof(pattern); ++i) EPD_2IN13_SendData(pattern[i]);
-    EPD_2IN13_SendCommand(0x27);
-    uint8_t first = EPD_2IN13_ReadSharedByte();
-    out[0] = first;
-    out[1] = epd_last_status;
-    out[2] = epd_last_temperature;
-    out[3] = 4;
+    for (uint16_t i = 0; i < (uint16_t)(PROBE_COLS * PROBE_ROWS); ++i)
+      EPD_2IN13_SendData(EPD_2IN13_ProbeNext(&state));
+    EPD_2IN13_SendCommand(0x41); EPD_2IN13_SendData(0x00);
+    state = 0xACE1;
+    for (uint16_t row = 0; row < PROBE_ROWS; ++row) {
+      EPD_2IN13_SendCommand(0x4E); EPD_2IN13_SendData(0x00);
+      EPD_2IN13_SendCommand(0x4F); EPD_2IN13_SendData(row & 0xff); EPD_2IN13_SendData(row >> 8);
+      EPD_2IN13_SendCommand(0x27);
+      memset(readback, 0xff, sizeof(readback));
+      if (EPD_2IN13_ReadSharedBytes(readback, sizeof(readback)) != sizeof(readback)) break;
+      for (uint16_t col = 0; col < PROBE_COLS; ++col) {
+        uint8_t expected = EPD_2IN13_ProbeNext(&state);
+        if (readback[col + 1] == expected) matches++;
+        else if (first_mismatch == 0xFFFF) first_mismatch = (uint16_t)(row * PROBE_COLS + col);
+      }
+    }
+    out[0] = (uint8_t)(matches >> 8); out[1] = (uint8_t)matches;
+    out[2] = (uint8_t)(first_mismatch >> 8); out[3] = (uint8_t)first_mismatch;
   }
   EPD_SetPower(0);
   return 0;
