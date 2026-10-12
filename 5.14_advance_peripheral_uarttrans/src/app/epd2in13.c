@@ -332,8 +332,8 @@ uint8_t EPD_2IN13_Probe(uint8_t mode, uint8_t out[4])
     enum { PROBE_COLS = 50, PROBE_ROWS = 240 };
     uint8_t readback[PROBE_COLS + 1];
     uint16_t state = 0xACE1;
-    uint16_t matches = 0;
-    uint16_t first_mismatch = 0xFFFF;
+    uint16_t matches_offset0 = 0;
+    uint16_t matches_offset1 = 0;
     /* 240*50 = 12000 bytes: exceeds a 160x296 SSD1675A/B plane (5920 B)
      * while remaining within a 400x300 SSD1619A-class plane (15000 B). */
     EPD_2IN13_SendCommand(0x11); EPD_2IN13_SendData(0x03);
@@ -355,12 +355,13 @@ uint8_t EPD_2IN13_Probe(uint8_t mode, uint8_t out[4])
       if (EPD_2IN13_ReadSharedBytes(readback, sizeof(readback)) != sizeof(readback)) break;
       for (uint16_t col = 0; col < PROBE_COLS; ++col) {
         uint8_t expected = EPD_2IN13_ProbeNext(&state);
-        if (readback[col + 1] == expected) matches++;
-        else if (first_mismatch == 0xFFFF) first_mismatch = (uint16_t)(row * PROBE_COLS + col);
+        if (readback[col] == expected) matches_offset0++;
+        if (readback[col + 1] == expected) matches_offset1++;
       }
     }
-    out[0] = (uint8_t)(matches >> 8); out[1] = (uint8_t)matches;
-    out[2] = (uint8_t)(first_mismatch >> 8); out[3] = (uint8_t)first_mismatch;
+    /* Return both alignment scores; neither is a model ID. */
+    out[0] = (uint8_t)(matches_offset0 >> 8); out[1] = (uint8_t)matches_offset0;
+    out[2] = (uint8_t)(matches_offset1 >> 8); out[3] = (uint8_t)matches_offset1;
   }
   EPD_SetPower(0);
   return 0;
