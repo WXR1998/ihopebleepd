@@ -13,6 +13,10 @@ uint8_t epd_sleep_mode = EPD_SLEEP_DEFAULT;
 uint8_t epd_display_mode = EPD_MODE_BW;
 /* E2: 1=下次全刷激活前清红 RAM（0x26 全 0），由 0B 命令切换 */
 uint8_t epd_clear_red_on_update = 0;
+/* T 系单变量开关（1.36-diag）：由 EPD_Init_With_Mode 各 case 设置、入口统一清零 */
+uint8_t epd_gate296 = 0;
+uint8_t epd_pre_act_40 = 0;
+uint8_t epd_act_c4 = 0;
 uint8_t epd_last_temperature = 0xFF;
 uint8_t epd_last_status = 0xFF;
 static uint8_t epd_panel_powered = 0;
@@ -546,11 +550,14 @@ void EPD_2IN13_Init_With_LUT(const unsigned char* lut)
   EPD_2IN13_SendData(0x3B);
 
   EPD_2IN13_SendCommand(0x01); //Driver output control
-  // EPD_2IN13_SendData(0xD3);
-  //EPD_2IN13_SendData(0x00);
-  EPD_2IN13_SendData((EPD_2IN13_HEIGHT-1)&0xff);
-  EPD_2IN13_SendData((EPD_2IN13_HEIGHT-1)>>8);
-  EPD_2IN13_SendData(0x00);
+  if (epd_gate296) {
+    // T1：213ICE 原表——296 门（0x128）+ 第三字节 0x01
+    EPD_2IN13_SendData(0x28); EPD_2IN13_SendData(0x01); EPD_2IN13_SendData(0x01);
+  } else {
+    EPD_2IN13_SendData((EPD_2IN13_HEIGHT-1)&0xff);
+    EPD_2IN13_SendData((EPD_2IN13_HEIGHT-1)>>8);
+    EPD_2IN13_SendData(0x00);
+  }
 
   EPD_2IN13_SendCommand(0x11); //data entry mode
   EPD_2IN13_SendData(0x01);
@@ -561,12 +568,16 @@ void EPD_2IN13_Init_With_LUT(const unsigned char* lut)
   EPD_2IN13_SendData((EPD_2IN13_WIDTH/8)-1);
 
   EPD_2IN13_SendCommand(0x45); //set Ram-Y address start/end position
-  // EPD_2IN13_SendData(0xD3);   //0xF9-->(249+1)=250
-  // EPD_2IN13_SendData(0x00);
-  EPD_2IN13_SendData((EPD_2IN13_HEIGHT-1)&0xff);
-  EPD_2IN13_SendData((EPD_2IN13_HEIGHT-1)>>8);
-  EPD_2IN13_SendData(0x00);
-  EPD_2IN13_SendData(0x00);
+  if (epd_gate296) {
+    // T1: window [84..295] - 212 rows anchored at bottom of 296-gate space
+    EPD_2IN13_SendData(0x28); EPD_2IN13_SendData(0x01);
+    EPD_2IN13_SendData(0x54); EPD_2IN13_SendData(0x00);
+  } else {
+    EPD_2IN13_SendData((EPD_2IN13_HEIGHT-1)&0xff);
+    EPD_2IN13_SendData((EPD_2IN13_HEIGHT-1)>>8);
+    EPD_2IN13_SendData(0x00);
+    EPD_2IN13_SendData(0x00);
+  }
 
   EPD_2IN13_SendCommand(0x3C); //BorderWavefrom
   EPD_2IN13_SendData(0x01);
@@ -603,6 +614,12 @@ void EPD_2IN13_Init_With_LUT(const unsigned char* lut)
     
     EPD_2IN13_SendCommand(0x20); // load LUT from OTP
     EPD_2IN13_ReadBusy();
+
+    if (epd_display_mode == EPD_MODE_T4_21DUAL) {
+      // T4: init 尾 0x21 双字节 00 80（bw213_m3n 形式；0001 基线无 0x21、原厂=03）
+      EPD_2IN13_SendCommand(0x21);
+      EPD_2IN13_SendData(0x00); EPD_2IN13_SendData(0x80);
+    }
   }
 
   DEV_Delay_ms(100);
@@ -656,10 +673,12 @@ void EPD_2IN13_PrepareBlkRAM(void)
   EPD_2IN13_SendData(0x00);
   
   EPD_2IN13_SendCommand(0x4F);  // set RAM Y address counter
-  // EPD_2IN13_SendData(0xD3);
-  // EPD_2IN13_SendData(0x00);
-  EPD_2IN13_SendData((EPD_2IN13_HEIGHT-1)&0xff);
-  EPD_2IN13_SendData((EPD_2IN13_HEIGHT-1)>>8);
+  if (epd_gate296) {
+    EPD_2IN13_SendData(0x28); EPD_2IN13_SendData(0x01); // T1: Y counter=296 (window high end)
+  } else {
+    EPD_2IN13_SendData((EPD_2IN13_HEIGHT-1)&0xff);
+    EPD_2IN13_SendData((EPD_2IN13_HEIGHT-1)>>8);
+  }
   
     // black white image
     EPD_2IN13_SendCommand(0x24);
@@ -749,8 +768,12 @@ void EPD_2IN13_UpdateDisplay(void)
 {
      HwUARTPrintf("turn on display\r\n");
   
+    if (epd_pre_act_40) {
+      // T2: 213ICE 写 RAM 后、C7 前的预激活（单发 0x22 0x40，不跟 0x20）
+      EPD_2IN13_SendCommand(0x22); EPD_2IN13_SendData(0x40);
+    }
     EPD_2IN13_SendCommand(0x22);
-    EPD_2IN13_SendData(0xC7);
+    EPD_2IN13_SendData(epd_act_c4 ? 0xC4 : 0xC7); // T5: C4(OTP+Mode1) vs C7
     EPD_2IN13_SendCommand(0x20);
     EPD_2IN13_ReadBusy();
     DEV_Delay_ms(200);
@@ -985,6 +1008,7 @@ static void EPD_2IN13_Init_SSD1675B(void)
 
 void EPD_Init_With_Mode(uint8_t mode) {
   epd_display_mode = mode;
+  epd_gate296 = 0; epd_pre_act_40 = 0; epd_act_c4 = 0;
   switch(mode) {
     case EPD_MODE_BW:
       // 2026-10-10 实测（1.17-diag 检测图）：自定义 lut_bw_update 在 DEPG0213RH
@@ -1008,6 +1032,27 @@ void EPD_Init_With_Mode(uint8_t mode) {
       // 褪色实验 B：灰度 LUT + 同帧 RAM 三叠刷（EPD_Display 放行 3 次激活）。
       // 流程约束：网页须先 01FF 清白（灰度 LUT 无「黑→白」相）。
       EPD_2IN13_Init_With_LUT(EPD_2IN13_lut_gray_update);
+      break;
+    case EPD_MODE_T1_GATE296:
+      epd_gate296 = 1;
+      EPD_2IN13_Init_With_LUT(NULL);
+      break;
+    case EPD_MODE_T2_PRE40:
+      epd_pre_act_40 = 1;
+      EPD_2IN13_Init_With_LUT(NULL);
+      EPD_2IN13_PrepareRedRAM();
+      for (uint16_t i = 0; i < EPD_Buffer_Size; i++) EPD_2IN13_SendData(0x00);
+      break;
+    case EPD_MODE_T4_21DUAL:
+      EPD_2IN13_Init_With_LUT(NULL); // T4 分支在 OTP 尾部按 mode 判断
+      EPD_2IN13_PrepareRedRAM();
+      for (uint16_t i = 0; i < EPD_Buffer_Size; i++) EPD_2IN13_SendData(0x00);
+      break;
+    case EPD_MODE_T5_ACT_C4:
+      epd_act_c4 = 1;
+      EPD_2IN13_Init_With_LUT(NULL);
+      EPD_2IN13_PrepareRedRAM();
+      for (uint16_t i = 0; i < EPD_Buffer_Size; i++) EPD_2IN13_SendData(0x00);
       break;
     case EPD_MODE_SSD1675B:
       EPD_2IN13_Init_SSD1675B();

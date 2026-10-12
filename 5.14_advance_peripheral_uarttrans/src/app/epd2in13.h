@@ -44,8 +44,12 @@ enum {
     EPD_MODE_FACTORY_TEMP_READ91_NO1A = 0xA, /* 91 激活但不写 0x1A 温度——隔离温度写入对黑度的影响 */
     EPD_MODE_FACTORY_TEMP_READ91_PARTIAL_X3 = 0xB, /* C7 后局部续刷激活 ×3——无清白相加深实验 */
     EPD_MODE_SSD1675B = 0xC, /* DEPG0213/SSD1675B reference init + LUT */
+    EPD_MODE_T1_GATE296 = 0xE, /* T1: 296 门极 + Y 窗口 [84..295] 底部锚定（213ICE 原表） */
+    EPD_MODE_T2_PRE40 = 0xF,   /* T2: 写 RAM 后 C7 前 0x22 0x40 预激活（213ICE 必发） */
+    EPD_MODE_T4_21DUAL = 0x10, /* T4: init 尾 0x21 双字节 00 80（bw213_m3n 形式） */
+    EPD_MODE_T5_ACT_C4 = 0x11, /* T5: 显示激活 C4 替代 C7（bw213_m OTP+Mode1） */
 
-    EPD_MODE_END = 0xD,
+    EPD_MODE_END = 0x12,
 };
 
 /* Non-refresh diagnostics: mode 0 reads 0x2F and 0x1B; mode 1 writes a
@@ -76,6 +80,9 @@ void EPD_2IN13_WriteRAM(const uint8_t *buf, const int len);
 void EPD_2IN13_UpdateDisplay(void);
 void EPD_2IN13_ClearRedRAM(void);   /* E2: 0x26 全 0 清红 RAM（BW 数据保留） */
 extern uint8_t epd_clear_red_on_update; /* E2: 0B 切换；1=下次全刷前清红 */
+extern uint8_t epd_gate296;    /* T1: 296 门极窗口参数（init+prepare 共用） */
+extern uint8_t epd_pre_act_40; /* T2: 0x40 预激活开关 */
+extern uint8_t epd_act_c4;     /* T5: C4 激活开关 */
 void EPD_2IN13_ReadBusy(void);
 
 /* 波形实验：写入自定义 LUT（n=76 全表或 70 仅波形），调用方随后 0x22 激活 */
