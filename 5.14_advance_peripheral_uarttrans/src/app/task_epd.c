@@ -253,7 +253,7 @@ void handle_cmd()
       break;
     case EPD_CMD_PROBE:
        ASSERT_MIN_LEN(rx_fram_len, 2);
-       if (epd_rx_frame[1] > EPD_PROBE_RAM) {
+       if (epd_rx_frame[1] > EPD_PROBE_USER_ID) {
          epd_resp_frame[1] = 0xff;
          break;
        }

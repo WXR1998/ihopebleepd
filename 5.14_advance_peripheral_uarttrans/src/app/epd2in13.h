@@ -51,6 +51,8 @@ enum {
  * tiny RAM pattern and reads via the controller's readback path. */
 #define EPD_PROBE_REGISTERS 0x0
 #define EPD_PROBE_RAM       0x1
+#define EPD_PROBE_OTP       0x2  /* 0x2D readback */
+#define EPD_PROBE_USER_ID   0x3  /* 0x2E readback */
 // #define EPD_2IN13_FULL			0
 // #define EPD_2IN13_PART			1
 

@@ -313,7 +313,7 @@ static uint8_t EPD_2IN13_ProbeNext(uint16_t *state)
  * and reports readback match count plus first mismatch index. */
 uint8_t EPD_2IN13_Probe(uint8_t mode, uint8_t out[4])
 {
-  if (!out || (mode != EPD_PROBE_REGISTERS && mode != EPD_PROBE_RAM)) return 0xff;
+  if (!out || mode > EPD_PROBE_USER_ID) return 0xff;
   memset(out, 0xff, 4);
   EPD_SetPower(1);
   DEV_Delay_ms(20);
@@ -328,6 +328,13 @@ uint8_t EPD_2IN13_Probe(uint8_t mode, uint8_t out[4])
     (void)EPD_2IN13_ReadSharedByte();
     out[1] = epd_last_temperature;
     out[2] = epd_last_status;
+  } else if (mode == EPD_PROBE_OTP || mode == EPD_PROBE_USER_ID) {
+    uint8_t raw[8];
+    uint8_t n = (mode == EPD_PROBE_OTP) ? 4 : 8;
+    memset(raw, 0xff, sizeof(raw));
+    EPD_2IN13_SendCommand(mode == EPD_PROBE_OTP ? 0x2D : 0x2E);
+    if (EPD_2IN13_ReadSharedBytes(raw, n) != n) return 0xf1;
+    memcpy(out, raw, 4);
   } else {
     enum { PROBE_COLS = 50, PROBE_ROWS = 240 };
     uint8_t readback[PROBE_COLS + 1];
