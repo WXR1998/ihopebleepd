@@ -776,6 +776,14 @@ void EPD_2IN13_UpdateDisplay(void)
     EPD_2IN13_SendCommand(0x22);
     EPD_2IN13_SendData(epd_act_c4 ? 0xC4 : 0xC7); // T5: C4(OTP+Mode1) vs C7
     EPD_2IN13_SendCommand(0x20);
+    if (epd_display_mode == EPD_MODE_BW) {
+      // 0001 默认收尾（2026-10-13 定案）：激活后 5.5s 强制深睡断电——跳过 OTP 波形
+      // 后段回摆相位（回摆把黑从峰值 1.4 拉回 0.4-0.6），锁定高黑度态。
+      // 5.5s 由 WXR 实测定档（6s 已入红相位：泛红+对比度降）。
+      HWUART_Printf("[BW] interrupt 5.5s\r\n");
+      DEV_Delay_ms(5500);
+      return;
+    }
     if (epd_interrupt_delay_s) {
       // T17 中途打断锁峰值：不等 BUSY，延时 N 秒直接返回——调用方紧随 EPD_2IN13_Sleep()
       // 深睡+断电，把粒子锁在波形峰值相位（实测峰值 ~1.4 > 目标 1.0，正常终态仅 0.4-0.6）
