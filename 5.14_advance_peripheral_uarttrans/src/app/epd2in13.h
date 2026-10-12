@@ -46,6 +46,11 @@ enum {
 
     EPD_MODE_END = 0xC,
 };
+
+/* Non-refresh diagnostics: mode 0 reads 0x2F and 0x1B; mode 1 writes a
+ * tiny RAM pattern and reads via the controller's readback path. */
+#define EPD_PROBE_REGISTERS 0x0
+#define EPD_PROBE_RAM       0x1
 // #define EPD_2IN13_FULL			0
 // #define EPD_2IN13_PART			1
 
@@ -66,6 +71,7 @@ void EPD_2IN13_PrepareRedRAM(void);
 void EPD_2IN13_WriteRAM(const uint8_t *buf, const int len);
 
 void EPD_2IN13_UpdateDisplay(void);
+void EPD_2IN13_ReadBusy(void);
 
 /* 波形实验：写入自定义 LUT（n=76 全表或 70 仅波形），调用方随后 0x22 激活 */
 void EPD_2IN13_LoadLutConfig(const uint8_t *cfg, uint8_t n);
@@ -81,5 +87,9 @@ void EPD_2IN13_Sleep(void);
 void EPD_Clear(uint8_t tofill);
 void EPD_Display();
 void EPD_Init_With_Mode(uint8_t mode);
+
+/* Probe without activating a display update or loading a waveform. Returns
+ * 0 on success and fills four bytes of raw controller readback. */
+uint8_t EPD_2IN13_Probe(uint8_t mode, uint8_t out[4]);
 
 #endif

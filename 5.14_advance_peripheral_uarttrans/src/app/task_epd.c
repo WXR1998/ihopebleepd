@@ -63,6 +63,7 @@ enum {
   EPD_CMD_RESET = 0x7,
   EPD_CMD_SLEEP_CFG = 0x8,
   EPD_CMD_LUT_UPDATE = 0x9,
+  EPD_CMD_PROBE = 0xA,       /* non-refresh 0x2F/0x1B/RAM readback */
 };
  
  
@@ -250,7 +251,16 @@ void handle_cmd()
       ASSERT_MIN_LEN(rx_fram_len, 2);
       EPD_Clear(epd_rx_frame[1]);
       break;
-    case EPD_CMD_PREPARE_BLK:
+    case EPD_CMD_PROBE:
+       ASSERT_MIN_LEN(rx_fram_len, 2);
+       if (epd_rx_frame[1] > EPD_PROBE_RAM) {
+         epd_resp_frame[1] = 0xff;
+         break;
+       }
+       resp_fram_len = 6;
+       epd_resp_frame[1] = EPD_2IN13_Probe(epd_rx_frame[1], epd_resp_frame + 2);
+       break;
+     case EPD_CMD_PREPARE_BLK:
       ASSERT_INIT;
       EPD_2IN13_PrepareBlkRAM();
       break;

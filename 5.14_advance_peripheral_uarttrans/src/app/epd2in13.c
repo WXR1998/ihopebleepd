@@ -16,6 +16,9 @@ uint8_t epd_last_status = 0xFF;
 static uint8_t epd_panel_powered = 0;
 
 static void epd_spi_ensure_open(void);
+static void EPD_2IN13_Reset(void);
+static void EPD_2IN13_SendCommand(uint8_t Reg);
+static void EPD_2IN13_SendData(uint8_t Data);
 
 
 #include <ti/drivers/SPI.h>
@@ -247,6 +250,44 @@ static uint8_t EPD_2IN13_ReadSharedByte(void)
   epd_last_temperature = value;
   epd_last_status = second;
   return value;
+}
+
+/* Non-refresh controller probe. This deliberately avoids 0x20/0x22 and LUT
+ * loading. Mode 0 reads status/temperature bytes; mode 1 writes four bytes to
+ * BW RAM and reads the controller's 0x27 path back. Readback is diagnostic:
+ * the first byte may be a controller dummy byte, so callers must retain both. */
+uint8_t EPD_2IN13_Probe(uint8_t mode, uint8_t out[4])
+{
+  if (!out || (mode != EPD_PROBE_REGISTERS && mode != EPD_PROBE_RAM)) return 0xff;
+  memset(out, 0xff, 4);
+  EPD_SetPower(1);
+  DEV_Delay_ms(20);
+  EPD_2IN13_Reset();
+  EPD_2IN13_ReadBusy();
+
+  if (mode == EPD_PROBE_REGISTERS) {
+    EPD_2IN13_SendCommand(0x2F);
+    uint8_t status = EPD_2IN13_ReadSharedByte();
+    out[0] = status;
+    EPD_2IN13_SendCommand(0x1B);
+    (void)EPD_2IN13_ReadSharedByte();
+    out[1] = epd_last_temperature;
+    out[2] = epd_last_status;
+  } else {
+    static const uint8_t pattern[4] = { 0xA5, 0x3C, 0x5A, 0xC3 };
+    EPD_2IN13_SendCommand(0x4E); EPD_2IN13_SendData(0x00);
+    EPD_2IN13_SendCommand(0x4F); EPD_2IN13_SendData(0x00); EPD_2IN13_SendData(0x00);
+    EPD_2IN13_SendCommand(0x24);
+    for (uint8_t i = 0; i < sizeof(pattern); ++i) EPD_2IN13_SendData(pattern[i]);
+    EPD_2IN13_SendCommand(0x27);
+    uint8_t first = EPD_2IN13_ReadSharedByte();
+    out[0] = first;
+    out[1] = epd_last_status;
+    out[2] = epd_last_temperature;
+    out[3] = 4;
+  }
+  EPD_SetPower(0);
+  return 0;
 }
 
 // should be only called once!
