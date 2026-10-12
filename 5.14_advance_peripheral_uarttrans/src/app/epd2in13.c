@@ -784,6 +784,13 @@ void EPD_2IN13_UpdateDisplay(void)
       DEV_Delay_ms(5500);
       return;
     }
+    if (epd_display_mode == EPD_MODE_BWR) {
+      // 0002 默认收尾（2026-10-13 定案）：激活后 8s 强制深睡断电——红相位已结束
+      // （红色饱满）、BW 回摆未完成（黑色深度可）。WXR 四档实测定档（7/8/9/10s 中 8s 最优）。
+      HWUART_Printf("[BWR] interrupt 8s\r\n");
+      DEV_Delay_ms(8000);
+      return;
+    }
     if (epd_interrupt_delay_s) {
       // T17 中途打断锁峰值：不等 BUSY，延时 N 秒直接返回——调用方紧随 EPD_2IN13_Sleep()
       // 深睡+断电，把粒子锁在波形峰值相位（实测峰值 ~1.4 > 目标 1.0，正常终态仅 0.4-0.6）
