@@ -56,8 +56,14 @@ enum {
     EPD_MODE_T17_I6 = 0x17,
     EPD_MODE_T17_I7 = 0x18,
     EPD_MODE_T17_I8 = 0x19,
+    /* BWR 打断实验档：0002 协议（双通道）+ 激活后 N 秒打断——红相位在波形后段，
+     * 打断点需实测平衡「红显出来」与「黑锁峰值」 */
+    EPD_MODE_BWR_I7 = 0x1A,
+    EPD_MODE_BWR_I8 = 0x1B,
+    EPD_MODE_BWR_I9 = 0x1C,
+    EPD_MODE_BWR_I10 = 0x1D,
 
-    EPD_MODE_END = 0x1A,
+    EPD_MODE_END = 0x1E,
 };
 
 /* Non-refresh diagnostics: mode 0 reads 0x2F and 0x1B; mode 1 writes a

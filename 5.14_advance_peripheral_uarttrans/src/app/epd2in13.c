@@ -1041,6 +1041,13 @@ void EPD_Init_With_Mode(uint8_t mode) {
     case EPD_MODE_BWR:
       EPD_2IN13_Init_With_LUT(NULL);
       break;
+    case EPD_MODE_BWR_I7:
+    case EPD_MODE_BWR_I8:
+    case EPD_MODE_BWR_I9:
+    case EPD_MODE_BWR_I10: /* 四档共享：7/8/9/10s 打断（BWR 协议，不清红） */
+      epd_interrupt_delay_s = mode - EPD_MODE_BWR_I7 + 7;
+      EPD_2IN13_Init_With_LUT(NULL);
+      break;
     case EPD_MODE_GRAY:
       EPD_2IN13_Init_With_LUT(EPD_2IN13_lut_gray_update);
       break;
