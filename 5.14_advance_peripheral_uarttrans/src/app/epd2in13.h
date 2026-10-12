@@ -74,6 +74,7 @@ void EPD_2IN13_PrepareRedRAM(void);
 void EPD_2IN13_WriteRAM(const uint8_t *buf, const int len);
 
 void EPD_2IN13_UpdateDisplay(void);
+void EPD_2IN13_ClearRedRAM(void);   /* E2: 0x26 全 0 清红 RAM（BW 数据保留） */
 void EPD_2IN13_ReadBusy(void);
 
 /* 波形实验：写入自定义 LUT（n=76 全表或 70 仅波形），调用方随后 0x22 激活 */

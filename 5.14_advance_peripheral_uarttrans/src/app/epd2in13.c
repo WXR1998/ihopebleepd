@@ -829,6 +829,20 @@ void EPD_Clear(uint8_t tofill) {
   EPD_Display(EPD_MODE_BW);
 }
 
+/* E2 实验（2026-10-12，ChangXiaoxin 对照发现）：其 Display 每次写 BW 后
+ * 紧跟写 0x26 全 0 清红通道；我们 BW 路径不碰 0x26——BWR 残留红 RAM 会
+ * 参与 C7 双平面激活，疑似压低对比度。本函数仅清红 RAM（BW 数据保留），
+ * 随后由调用方重新 C7 激活，用于同图「不清红 vs 清红」对照。 */
+void EPD_2IN13_ClearRedRAM(void) {
+  uint16_t bytes = (EPD_2IN13_WIDTH / 8) * EPD_2IN13_HEIGHT;
+  EPD_2IN13_SendCommand(0x4E); EPD_2IN13_SendData(0x00);
+  EPD_2IN13_SendCommand(0x4F);
+  EPD_2IN13_SendData((EPD_2IN13_HEIGHT - 1) & 0xff);
+  EPD_2IN13_SendData((EPD_2IN13_HEIGHT - 1) >> 8);
+  EPD_2IN13_SendCommand(0x26);
+  for (uint16_t i = 0; i < bytes; i++) EPD_2IN13_SendData(0x00);
+}
+
 void EPD_Display() {
   // 局部续刷次数：0x9=1 次；0xB=3 次（加深实验——同一帧 RAM 连续局部激活，
   // 无清白相，验证能否在 91 全刷基础上叠出更深黑度）

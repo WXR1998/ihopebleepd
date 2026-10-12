@@ -64,6 +64,7 @@ enum {
   EPD_CMD_SLEEP_CFG = 0x8,
   EPD_CMD_LUT_UPDATE = 0x9,
   EPD_CMD_PROBE = 0xA,       /* non-refresh 0x2F/0x1B/RAM readback */
+  EPD_CMD_UPDATE_CLR_RED = 0xB, /* E2: 清红 RAM 后 C7 重激活（BW 数据保留） */
 };
  
  
@@ -275,6 +276,15 @@ void handle_cmd()
     case EPD_CMD_UPDATE:
       ASSERT_INIT;
       EPD_Display();
+      epd_initialized = false;
+      break;
+    case EPD_CMD_UPDATE_CLR_RED:
+      ASSERT_INIT;
+      HWUART_Printf("[E2] clear red RAM + re-activate
+");
+      EPD_2IN13_ClearRedRAM();
+      EPD_2IN13_UpdateDisplay();
+      EPD_2IN13_Sleep();
       epd_initialized = false;
       break;
     case EPD_CMD_RESET:
