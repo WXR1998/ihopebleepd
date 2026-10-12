@@ -280,8 +280,7 @@ void handle_cmd()
       break;
     case EPD_CMD_UPDATE_CLR_RED:
       ASSERT_INIT;
-      HWUART_Printf("[E2] clear red RAM + re-activate
-");
+      HWUART_Printf("[E2] clear red RAM + re-activate\r\n");
       EPD_2IN13_ClearRedRAM();
       EPD_2IN13_UpdateDisplay();
       EPD_2IN13_Sleep();
