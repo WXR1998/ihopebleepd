@@ -779,8 +779,7 @@ void EPD_2IN13_UpdateDisplay(void)
     if (epd_interrupt_delay_s) {
       // T17 中途打断锁峰值：不等 BUSY，延时 N 秒直接返回——调用方紧随 EPD_2IN13_Sleep()
       // 深睡+断电，把粒子锁在波形峰值相位（实测峰值 ~1.4 > 目标 1.0，正常终态仅 0.4-0.6）
-      HWUART_Printf("[T17] interrupt in %ds
-", epd_interrupt_delay_s);
+      HWUART_Printf("[T17] interrupt in %ds\r\n", epd_interrupt_delay_s);
       DEV_Delay_ms(epd_interrupt_delay_s * 1000);
       return;
     }
